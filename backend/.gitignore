@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env.example
+./logs
+frontend/
+.hopevenv
+logs/
+src/data
+later/
+.env
+".env" 
+logs
+src/logs
+storage
+"logs/" 

@@ -1,0 +1,15 @@
+version: '3.9'
+
+services:
+  vite-app:
+    build: .
+    ports:
+      - "5173:5173"
+      - "5174:5174"
+      - "5175:5175"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: sh -c "npm run dev -- --host --port ${PORT:-5173}"
+    environment:
+      - PORT=5173

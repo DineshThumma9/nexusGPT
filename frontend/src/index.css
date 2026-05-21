@@ -1,0 +1,44 @@
+@import url("https://fonts.googleapis.com/css2?family=Red+Rose:wght@400;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Jaldi:wght@400;700&display=swap");
+
+body {
+  margin: 0;
+  font-family: "Outfit", "Jaldi", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+/* Global improvements for text rendering */
+* {
+  box-sizing: border-box;
+}
+
+/* Prevent unwanted line breaks after punctuation */
+p,
+div,
+span {
+  text-rendering: optimizeLegibility;
+  font-variant-ligatures: common-ligatures;
+}
+
+/* Better word wrapping */
+.markdown-content {
+  word-wrap: break-word;
+  line-height: 1.6;
+  text-align: justify;
+}
+
+/* Improve code block readability */
+pre,
+code {
+  font-variant-ligatures: none;
+  text-rendering: optimizeSpeed;
+}
