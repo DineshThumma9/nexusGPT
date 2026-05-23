@@ -8,29 +8,29 @@ import { codeBlockRecipes } from "./theme/codeBlockRecipes";
 const tokens = {
   colors: {
     brand: {
-      50: { value: "rgba(34, 197, 94, 0.05)" },
-      100: { value: "rgba(34, 197, 94, 0.1)" },
-      200: { value: "rgba(34, 197, 94, 0.2)" },
-      300: { value: "rgba(34, 197, 94, 0.3)" },
-      400: { value: "rgba(34, 197, 94, 0.4)" },
-      500: { value: "rgba(34, 197, 94, 0.5)" },
-      600: { value: "#22c55e" },
-      700: { value: "#16a34a" },
-      800: { value: "#15803d" },
-      900: { value: "#166534" },
-      950: { value: "#14532d" },
+      50: { value: "rgba(99, 102, 241, 0.05)" },
+      100: { value: "rgba(99, 102, 241, 0.1)" },
+      200: { value: "rgba(99, 102, 241, 0.2)" },
+      300: { value: "rgba(99, 102, 241, 0.3)" },
+      400: { value: "rgba(99, 102, 241, 0.4)" },
+      500: { value: "rgba(99, 102, 241, 0.5)" },
+      600: { value: "#6366f1" },
+      700: { value: "#4f46e5" },
+      800: { value: "#4338ca" },
+      900: { value: "#3730a3" },
+      950: { value: "#312e81" },
     },
-    emerald: {
-      50: { value: "rgba(16, 185, 129, 0.05)" },
-      100: { value: "rgba(16, 185, 129, 0.1)" },
-      200: { value: "rgba(16, 185, 129, 0.2)" },
-      300: { value: "rgba(16, 185, 129, 0.3)" },
-      400: { value: "rgba(16, 185, 129, 0.4)" },
-      500: { value: "#10b981" },
-      600: { value: "#059669" },
-      700: { value: "#047857" },
-      800: { value: "#065f46" },
-      900: { value: "#064e3b" },
+    indigo: {
+      50: { value: "rgba(99, 102, 241, 0.05)" },
+      100: { value: "rgba(99, 102, 241, 0.1)" },
+      200: { value: "rgba(99, 102, 241, 0.2)" },
+      300: { value: "rgba(99, 102, 241, 0.3)" },
+      400: { value: "rgba(99, 102, 241, 0.4)" },
+      500: { value: "#6366f1" },
+      600: { value: "#4f46e5" },
+      700: { value: "#4338ca" },
+      800: { value: "#3730a3" },
+      900: { value: "#312e81" },
     },
   },
   fonts: {
@@ -139,20 +139,20 @@ const semanticTokens = {
     },
     "bg.canvas": {
       value: {
-        base: "#f5f5f5",
-        _dark: "#121212",
+        base: "#f8fafc",
+        _dark: "#0b0c10",
       },
     },
     "bg.surface": {
       value: {
-        base: "white",
-        _dark: "#1a1a1a",
+        base: "#ffffff",
+        _dark: "#12131a",
       },
     },
     "bg.panel": {
       value: {
-        base: "rgba(255, 255, 255, 0.7)",
-        _dark: "rgba(26, 26, 26, 0.7)",
+        base: "rgba(255, 255, 255, 0.75)",
+        _dark: "rgba(20, 21, 31, 0.75)",
       },
     },
     "glass.bg": {
@@ -218,7 +218,7 @@ const semanticTokens = {
     "border.default": {
       value: {
         base: "rgba(0, 0, 0, 0.08)",
-        _dark: "rgba(255, 255, 255, 0.1)",
+        _dark: "rgba(255, 255, 255, 0.12)",
       },
     },
     border: {
@@ -230,7 +230,7 @@ const semanticTokens = {
     "border.subtle": {
       value: {
         base: "rgba(0, 0, 0, 0.05)",
-        _dark: "rgba(255, 255, 255, 0.06)",
+        _dark: "rgba(255, 255, 255, 0.08)",
       },
     },
     "border.emphasized": {
@@ -259,14 +259,14 @@ const semanticTokens = {
     },
     "brand.hover": {
       value: {
-        base: "rgba(34, 197, 94, 0.1)",
-        _dark: "rgba(34, 197, 94, 0.2)",
+        base: "rgba(99, 102, 241, 0.1)",
+        _dark: "rgba(99, 102, 241, 0.2)",
       },
     },
     "brand.active": {
       value: {
-        base: "rgba(34, 197, 94, 0.15)",
-        _dark: "rgba(34, 197, 94, 0.25)",
+        base: "rgba(99, 102, 241, 0.15)",
+        _dark: "rgba(99, 102, 241, 0.25)",
       },
     },
   },
@@ -278,7 +278,7 @@ const config = defineConfig({
   globalCss: {
     "*": {
       transition:
-        "background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease",
+        "background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     },
     body: {
       bg: "bg.canvas",

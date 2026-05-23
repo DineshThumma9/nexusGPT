@@ -46,7 +46,7 @@ async def fetch_repo(req: GitRequest) -> List[Document]:
     branch = req.branch or "main"
 
     # If the user provides a token, use it for private repositories
-    access_token = os.getenv("GITHUB_API_KEY") or os.getenv("GITHUB_TOKEN")
+    access_token = req.token or os.getenv("GITHUB_API_KEY") or os.getenv("GITHUB_TOKEN")
     if access_token:
         repo_url = (
             f"https://oauth2:{access_token}@github.com/{req.owner}/{req.repo}.git"
@@ -255,6 +255,146 @@ def build_relation_and_index(enriched_docs: Dict[str, ProjectNode]):
         ast_docs,
     )
 
+
+
+
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+
+import uuid
+from qdrant_client.models import PointStruct
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
+def _insert_to_vectordb(kb_id, ast_docs):
+    ns = str(kb_id)
+    print(f"Beginning insertion for namespace: {ns}...")
+
+    if not ast_docs:
+        return
+
+    print(f"Fetching cloud embeddings for {len(ast_docs)} chunks...")
+    
+    # 1. Extract data from LangChain Documents
+    texts = [doc.page_content for doc in ast_docs]
+    metadatas = [{**doc.metadata, "kb_id": ns} for doc in ast_docs]
+    
+    # 2. Get embeddings in one massive batch (bypassing LangChain's 64-chunk limit)
+    # Note: If your Git ingestion uses hybrid search (Sparse + Dense) like your PDF ingestion,
+    # generate your sparse vectors here too and format the vector={} dictionary accordingly.
+    dense_vectors = vector_db.embeddings.embed_documents(texts)
+
+    # 3. Build native Qdrant points with LangChain's exact payload schema
+    points = []
+    for i in range(len(texts)):
+        points.append(
+            PointStruct(
+                id=str(uuid.uuid4()),
+                vector=dense_vectors[i],
+                # LangChain retrieval tools strictly look for these two keys:
+                payload={"page_content": texts[i], "metadata": metadatas[i]}
+            )
+        )
+
+    print(f"Native upload to Qdrant (wait=False)...")
+    
+    # 4. Fire-and-forget native upload
+    vector_db.client.upload_records(
+        collection_name=vector_db.collection_name,
+        records=points,
+        batch_size=256,
+        wait=False
+    )
+        
+    print("Qdrant Vector Insertion Complete!")
+
+
+
+    
+
+@retry(stop=stop_after_attempt(3),wait = wait_exponential(multiplier=1,max=16,min=2))
+def _insert_to_graphdb(kb_id,batch_directories,batch_dir_relations,batch_files,batch_file_dir_relations,batch_imports,batch_symbols):
+    
+    ns = str(kb_id)
+    graph = get_graph(force_reconnect=True)
+    driver = graph._driver
+
+    print("Executing Neo4j transactions...")
+    
+    with driver.session() as session:
+            with session.begin_transaction() as tx:
+                if batch_directories:
+                    tx.run(
+                        """
+                        UNWIND $data AS row
+                        MERGE (d:Directory {id: row.id, ns: $ns})
+                        ON CREATE SET d.name = row.name
+                        """,
+                        {"data": [{"id": d[0], "name": d[1]} for d in batch_directories], "ns": ns},
+                    )
+
+                if batch_dir_relations:
+                    tx.run(
+                        """
+                        UNWIND $data AS row
+                        MERGE (parent:Directory {id: row.parent, ns: $ns})
+                        MERGE (child:Directory {id: row.child, ns: $ns})
+                        MERGE (parent)-[:CONTAINS]->(child)
+                        """,
+                        {"data": [{"parent": r[0], "child": r[1]} for r in batch_dir_relations], "ns": ns},
+                    )
+
+                if batch_files:
+                    tx.run(
+                        """
+                        UNWIND $files AS f
+                        MERGE (file:File {id: f.path, ns: $ns})
+                        ON CREATE SET file.name = f.filename
+                        """,
+                        {"files": batch_files, "ns": ns},
+                    )
+
+                if batch_file_dir_relations:
+                    tx.run(
+                        """
+                        UNWIND $rels AS r
+                        MERGE (d:Directory {id: r.parent, ns: $ns})
+                        MERGE (f:File {id: r.child, ns: $ns})
+                        MERGE (d)-[:CONTAINS]->(f)
+                        """,
+                        {"rels": batch_file_dir_relations, "ns": ns},
+                    )
+
+                if batch_imports:
+                    tx.run(
+                        """
+                        UNWIND $imports AS i
+                        MERGE (f:File {id: i.path, ns: $ns})
+                        MERGE (m:Module {id: i.target, name: i.target, ns: $ns})
+                        MERGE (f)-[:IMPORTS]->(m)
+                        """,
+                        {"imports": batch_imports, "ns": ns},
+                    )
+
+                if batch_symbols:
+                    tx.run(
+                        """
+                        UNWIND $symbols AS s
+                        MERGE (f:File {id: s.path, ns: $ns})
+                        MERGE (sym:Symbol {id: s.node_id, ns: $ns})
+                        ON CREATE SET sym.name = s.name, sym.type = s.kind
+                        MERGE (f)-[:CONTAINS]->(sym)
+                        """,
+                        {"symbols": batch_symbols, "ns": ns},
+                    )
+
+import logging
+import concurrent
+
+logger = logging.getLogger()
+
+
+
 def insert_to_databases(
     kb_id: str,
     batch_directories,
@@ -266,163 +406,60 @@ def insert_to_databases(
     ast_docs,
 ):
     """
-    Atomically inserts data into Neo4j and Qdrant. 
-    If either database write fails, both are rolled back entirely.
+    Atomically inserts data into Qdrant first, then Neo4j. 
+    If Neo4j fails, Qdrant insertion is rolled back.
     """
     ns = str(kb_id)
     graph = get_graph(force_reconnect=True)
-    driver = graph._driver  # Access underlying neo4j driver object
+    driver = graph._driver
 
-    neo4j_success = False
-    qdrant_success = False
 
-    print(f"Beginning atomic insertion for namespace: {ns}...")
+    from concurrent.futures import ThreadPoolExecutor
 
-    # Use an explicit Neo4j session to handle multi-statement atomic transactions
-    with driver.session() as session:
-        # Start a formal transaction block
-        tx = session.begin_transaction()
-        try:
-            # ====================================================
-            # 1. NEO4J TRANSACTION (Staged in memory)
-            # ====================================================
-            print("Staging Neo4j transactions...")
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        vectordb_task = executor.submit(_insert_to_vectordb,ns,ast_docs)
+        graphdb_task = executor.submit(_insert_to_graphdb,kb_id,batch_directories,batch_dir_relations,batch_files,batch_file_dir_relations,batch_imports,batch_symbols)
 
-            if batch_directories:
-                tx.run(
-                    """
-                    UNWIND $data AS row
-                    MERGE (d:Directory {id: row.id, ns: $ns})
-                    ON CREATE SET d.name = row.name
-                    """,
-                    {"data": [{"id": d[0], "name": d[1]} for d in batch_directories], "ns": ns},
+
+        done,not_done = concurrent.futures.wait([vectordb_task,graphdb_task],return_when=concurrent.futures.FIRST_EXCEPTION)
+
+
+
+        error_to_raise = None
+        for future in done:
+            try:
+                future.result()
+            except Exception as e:
+                logger.info(f"Critical Error e :{e}")
+                error_to_raise = e
+                # We can't actually kill a running Python thread, so we just
+                # let it finish running and we'll rollback after.
+
+    # OUTSIDE the `with ThreadPoolExecutor` block:
+    # At this point, the thread pool has been safely shutdown and both threads 
+    # are guaranteed to have stopped executing. We can now safely run the rollback!
+    if error_to_raise:
+        if ast_docs:
+            print("Rolling back Qdrant insertion...")
+            try:
+                from qdrant_client.http import models as rest_models
+                vector_db.client.delete(
+                    collection_name=vector_db.collection_name,
+                    points_selector=rest_models.Filter(
+                        must=[
+                            rest_models.FieldCondition(
+                            key="metadata.kb_id",
+                            match=rest_models.MatchValue(value=ns),
+                            )
+                    ]
+                    ),
                 )
-
-            if batch_dir_relations:
-                tx.run(
-                    """
-                    UNWIND $data AS row
-                    MERGE (parent:Directory {id: row.parent, ns: $ns})
-                    MERGE (child:Directory {id: row.child, ns: $ns})
-                    MERGE (parent)-[:CONTAINS]->(child)
-                    """,
-                    {"data": [{"parent": r[0], "child": r[1]} for r in batch_dir_relations], "ns": ns},
-                )
-
-            if batch_files:
-                tx.run(
-                    """
-                    UNWIND $files AS f
-                    MERGE (file:File {id: f.path, ns: $ns})
-                    ON CREATE SET file.name = f.filename
-                    """,
-                    {"files": batch_files, "ns": ns},
-                )
-
-            if batch_file_dir_relations:
-                tx.run(
-                    """
-                    UNWIND $rels AS r
-                    MERGE (d:Directory {id: r.parent, ns: $ns})
-                    MERGE (f:File {id: r.child, ns: $ns})
-                    MERGE (d)-[:CONTAINS]->(f)
-                    """,
-                    {"rels": batch_file_dir_relations, "ns": ns},
-                )
-
-            if batch_imports:
-                tx.run(
-                    """
-                    UNWIND $imports AS i
-                    MERGE (f:File {id: i.path, ns: $ns})
-                    MERGE (m:Module {id: i.target, name: i.target, ns: $ns})
-                    MERGE (f)-[:IMPORTS]->(m)
-                    """,
-                    {"imports": batch_imports, "ns": ns},
-                )
-
-            if batch_symbols:
-                tx.run(
-                    """
-                    UNWIND $symbols AS s
-                    MERGE (f:File {id: s.path, ns: $ns})
-                    MERGE (sym:Symbol {id: s.node_id, ns: $ns})
-                    ON CREATE SET sym.name = s.name, sym.type = s.kind
-                    MERGE (f)-[:CONTAINS]->(sym)
-                    """,
-                    {"symbols": batch_symbols, "ns": ns},
-                )
-
-            # Commit the Neo4j staging data. If this fails, code falls to the except block
-            tx.commit()
-            neo4j_success = True
-            print("Neo4j Commit Successful.")
-
-            # ====================================================
-            # 2. QDRANT VECTOR INSERTION (With rollback defense)
-            # ====================================================
-            if ast_docs:
-                print(f"Upserting {len(ast_docs)} code chunks into Qdrant for namespace {ns}...")
-                
-                for doc in ast_docs:
-                    doc.metadata["kb_id"] = ns
-
-                batch_size = 175
-                for i in range(0, len(ast_docs), batch_size):
-                    batch = ast_docs[i : i + batch_size]
-                    vector_db.add_documents(batch)
-                    print(f"Indexed batch {i // batch_size + 1}...")
-
-            qdrant_success = True
-            print("Qdrant Vector Insertion Complete! Transaction finished cleanly.")
-
-        except Exception as e:
-            print(f"CRITICAL: Atomic insertion failed due to error: {e}")
-            
-            # --- ROLLBACK HANDLING ---
-            if not neo4j_success:
-                print("Rolling back Neo4j transaction...")
-                try:
-                    tx.rollback()
-                except Exception as tx_err:
-                    print(f"Failed rolling back Neo4j active transaction: {tx_err}")
-            else:
-                # If Neo4j succeeded but Qdrant failed, we must purge what Neo4j committed
-                print("Neo4j committed, but Qdrant failed. Purging Neo4j data for namespace...")
-                try:
-                    with driver.session() as rollback_session:
-                        rollback_session.run(
-                            "MATCH (n {ns: $ns}) DETACH DELETE n", 
-                            {"ns": ns}
-                        )
-                    print("Neo4j data purged successfully.")
-                except Exception as purge_err:
-                    print(f"DANGER: Failed to purge Neo4j data after Qdrant crash: {purge_err}")
-
-            if not qdrant_success and ast_docs:
-                print("Purging partial vectors uploaded to Qdrant...")
-                try:
-                    from qdrant_client.http import models as rest_models
-                    
-                    # Target only the points belonging to this knowledge base ID payload
-                    vector_db.client.delete(
-                        collection_name=vector_db.collection_name,
-                        points_selector=rest_models.Filter(
-                            must=[
-                                rest_models.FieldCondition(
-                                    key="metadata.kb_id",
-                                    match=rest_models.MatchValue(value=ns),
-                                )
-                            ]
-                        ),
-                    )
-                    print("Qdrant partial data purged successfully.")
-                except Exception as qd_err:
-                    print(f"DANGER: Failed to clear partial Qdrant records: {qd_err}")
-
-            # Reraise exception to inform upstream worker/orchestrator of pipeline failure
-            raise e
-            
+                print("Qdrant data purged successfully.")
+            except Exception as qd_err:
+                print(f"DANGER: Failed to clear Qdrant records: {qd_err}")
+        
+        # Guarantee the error bubbles up to Celery so it triggers the task failure sequence.
+        raise error_to_raise
 # ====================================================
 # CELERY BACKGROUND TASKS (Redis Broker & Backend)
 # ====================================================

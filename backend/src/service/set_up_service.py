@@ -6,11 +6,13 @@ from fastapi import Depends, HTTPException
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 from src.db import get_db
 from src.models.models import APIKEYS, UserLLMConfig
 from src.service.auth_service import get_current_user
+from src.service.tools import middleware_setup
+
 
 logger = logging.getLogger("set_up_service")
 fernet_key = os.getenv("FERNET_KEY", "d3FVcotBFzBnqZ4BE0zlgji_YYZiK5hkDO3EzX9H7fs=")
@@ -76,7 +78,8 @@ def build_agent(
                 f"\nCurrently, the user has loaded a GitHub repository to this conversation:\n"
                 f"- Repository: {source_ref}\n\n"
                 f"When asked about this codebase, ALWAYS use the codebase tools (like `get_project_context`, "
-                f"`get_project_hierarchy`, or `search_code`) to explore and answer based on the real files."
+                f"`get_project_hierarchy`, `search_code`, or `get_file_context`) to explore and answer based on the real files. "
+                f"If the user asks about the contents, functions, or classes of a specific file, you MUST use the `get_file_context` tool."
             )
     else:
         system_prompt += (
@@ -84,11 +87,12 @@ def build_agent(
             "to retrieve matching context and answer based on the retrieved information."
         )
 
-    return create_react_agent(
+    return create_agent(
         model=llm,
         tools=tools,
         checkpointer=checkpointer,
-        prompt=system_prompt,
+        system_prompt=system_prompt,
+        middleware=middleware_setup(),
     )
 
 
@@ -144,3 +148,56 @@ def get_llm_instance(db=Depends(get_db), user=Depends(get_current_user)):
     return init_chat_model(
         model=config.model, model_provider=config.provider, api_key=decrypted_key
     )
+
+
+from collections import defaultdict
+import requests
+
+
+def get_valid_models():
+
+    links = {
+        "mistral": "https://api.mistral.ai/v1/models",
+        "openai": "https://api.openai.ai/v1/models",
+        "groq": "https://api.groq.com/openai/v1/models",
+        "openrouter": "https://openrouter.ai/v1/models",
+        "hugging face": "https://router.huggingface.co/v1/models",
+    }
+
+    api_keys = {
+        "mistral": os.getenv("MISTRAL_API_KEY"),
+        "openai": os.getenv("OPENAI_API_KEY"),
+        "groq": os.getenv("GROQ_API_KEY"),
+        "openrouter": os.getenv("OPENROUTER_API_KEY"),
+        "hugging face": os.getenv("HF_TOKEN"),
+    }
+
+    valid_models = defaultdict(list)
+
+    for model, model_url in links.items():
+        if api_keys[model] is None:
+            continue
+        try:
+            response = requests.get(
+                model_url, headers={"Authorization": f"Bearer {api_keys[model]}"}
+            )
+            if response.status_code == 200:
+                valid_models[model].append(
+                    [model_json["id"] for model_json in response.json()["data"]]
+                )
+        except:
+            logger.info(f"{model} is not available")
+
+    try:
+        gemini_model = requests.get(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={os.getenv('GOOGLE_API_KEY')}",
+            headers={"Content-Type": "application/json"},
+        )
+        if gemini_model.status_code == 200:
+            valid_models["gemini"] = [
+                model_json["name"] for model_json in gemini_model.json()["models"]
+            ]
+    except:
+        logger.info("Gemini is not available")
+
+    return valid_models

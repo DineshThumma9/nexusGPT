@@ -96,6 +96,7 @@ class GitSpec(BaseModel):
     branch: Optional[str] = "main"
     commit: Optional[str] = None
     tree_sha: Optional[str] = None
+    token: Optional[str] = None
 
 
 class GitRequest(BaseModel):
@@ -108,6 +109,7 @@ class GitRequest(BaseModel):
     file_extension_include: Optional[List[str]] = None
     file_extension_exclude: Optional[List[str]] = None
     files: Optional[List[str]] = None
+    token: Optional[str] = None
 
 
 class ProjectNode(BaseModel):

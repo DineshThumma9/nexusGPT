@@ -9,6 +9,37 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Premium Mesh Gradients for Glassmorphism Diffusion */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.25;
+  transition: all 0.5s ease;
+}
+
+body::before {
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, var(--chakra-colors-brand-600) 0%, transparent 60%);
+  top: -250px;
+  left: -200px;
+}
+
+body::after {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, var(--chakra-colors-brand-400) 0%, transparent 60%);
+  bottom: -150px;
+  right: -150px;
 }
 
 code {

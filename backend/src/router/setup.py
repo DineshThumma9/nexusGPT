@@ -8,7 +8,7 @@ from src.db import get_db
 from src.models.models import APIKEYS, UserLLMConfig
 from src.models.schema import API_KEY_REQUEST
 from src.router.auth import get_current_user
-from src.service.set_up_service import api_providers, encrypt, llm_providers
+from src.service.set_up_service import api_providers, encrypt, llm_providers,decrypt
 
 logger = logging.getLogger("basic_router")
 load_dotenv()
@@ -109,3 +109,67 @@ async def choose_model(
 
 
 #
+
+
+@router.get("/api-config")
+def api_config(db=Depends(get_db), user=Depends(get_current_user)):
+    api_configs = db.query(APIKEYS).filter_by(user_id=user.userid).all()
+
+    result = []
+    for api_config in api_configs:
+        result.append(
+            {
+                "provider": api_config.provider,
+                "encrypted_key": decrypt(api_config.encrypted_key),
+            }
+        )
+
+    return result
+
+
+
+
+from src.service.set_up_service import get_valid_models
+
+
+@router.get("/api-models")
+def valid_models():
+
+
+    return get_valid_models()
+
+@router.get("/mcp-config")
+def get_mcp_config(current_user=Depends(get_current_user)):
+    import os
+    import json
+    
+    filepath = "mcp_config.json"
+    if not os.path.exists(filepath):
+        return {"mcpServers": {}}
+    try:
+        with open(filepath, "r") as f:
+            content = f.read().strip()
+            if not content:
+                return {"mcpServers": {}}
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                return {"mcpServers": {}}
+    except Exception as e:
+        logger.error(f"Error reading mcp_config.json: {e}")
+        return {"mcpServers": {}}
+
+
+@router.post("/mcp-config")
+def save_mcp_config(config: Dict = Body(...), current_user=Depends(get_current_user)):
+    import json
+    
+    filepath = "mcp_config.json"
+    try:
+        with open(filepath, "w") as f:
+            json.dump(config, f, indent=2)
+        return {"message": "MCP Config saved successfully", "status_code": 200}
+    except Exception as e:
+        logger.error(f"Error writing mcp_config.json: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save MCP config: {str(e)}")
+    

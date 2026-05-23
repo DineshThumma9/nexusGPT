@@ -55,63 +55,7 @@ const TypingIndicator = () => (
   </Flex>
 );
 
-const getStatusIcon = (status: string) => {
-  const s = status.toLowerCase();
-  if (s.includes("fetching repo")) return <GitBranch size={18} />;
-  if (s.includes("analyzing structure")) return <Network size={18} />;
-  if (s.includes("parsing code chunks")) return <FileCode size={18} />;
-  if (s.includes("uploading to databases")) return <Database size={18} />;
-  if (s.includes("indexing")) return <FileText size={18} />;
-  if (s.includes("ready")) return <CheckCircle size={18} color="green" />;
-  return (
-    <Box
-      animation="spin 2s linear infinite"
-      css={{
-        "@keyframes spin": {
-          "0%": { transform: "rotate(0deg)" },
-          "100%": { transform: "rotate(360deg)" },
-        },
-      }}
-    >
-      <Loader2 size={18} />
-    </Box>
-  );
-};
-
-const RagStatusIndicator = ({ status }: { status: string }) => {
-  return (
-    <MotionFlex
-      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -10, scale: 0.95 }}
-      transition={{ duration: 0.3 }}
-      align="center"
-      gap={3}
-      px={5}
-      py={2.5}
-      mb={3}
-      mx="auto"
-      maxW="fit-content"
-      bg={{ base: "white", _dark: "rgba(20, 20, 20, 0.85)" }}
-      backdropFilter="blur(24px)"
-      border="1px solid"
-      borderColor={{ base: "gray.200", _dark: "whiteAlpha.200" }}
-      borderRadius="full"
-      boxShadow="0 10px 30px -10px rgba(0, 0, 0, 0.2)"
-      color="fg.default"
-    >
-      <Box color="brand.500">{getStatusIcon(status)}</Box>
-      <Box
-        fontSize="sm"
-        fontWeight="600"
-        textTransform="capitalize"
-        color="fg.default"
-      >
-        {status}
-      </Box>
-    </MotionFlex>
-  );
-};
+// Removed RagStatusIndicator as it's now handled by RagStatusMessage in ChatArea
 
 const box = () => ({
   w: "full",
@@ -180,8 +124,9 @@ const txtarea = () => ({
 });
 
 interface PollResponse {
-  collection_name: string;
   status: string;
+  detail?: string;
+  kb_id?: string;
 }
 
 const SendRequest = () => {
@@ -189,68 +134,17 @@ const SendRequest = () => {
   const { sending, setSending, isStreaming } = useSessionStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { streamMessage, abortStream } = useMessage();
-  const { addMessage, files, setFiles, kb_id, context, current_session } =
-    useSessionStore();
-
-  const [isWaitingForIndexing, setIsWaitingForIndexing] = useState(false);
-  const pendingMessageRef = useRef<string | null>(null);
-  const hasShownReadyToaster = useRef(false);
-  const loadingToastId = useRef<string | null>(null);
-
-  const { data, isSuccess, isError, error } = useQuery<PollResponse, Error>({
-    queryKey: ["status", kb_id],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/rag/status?kb_id=${kb_id}`);
-      if (!res.ok) throw new Error("Failed to fetch status");
-      return res.json();
-    },
-    enabled: isWaitingForIndexing,
-    refetchInterval: isWaitingForIndexing ? 3000 : false,
-    refetchIntervalInBackground: false,
-  });
-
-  useEffect(() => {
-    if (isSuccess && data?.status) {
-      const statusLower = data.status.toLowerCase();
-
-      if (statusLower === "ready" && !hasShownReadyToaster.current) {
-        hasShownReadyToaster.current = true;
-        setIsWaitingForIndexing(false);
-
-        if (loadingToastId.current) {
-          toaster.dismiss(loadingToastId.current);
-          loadingToastId.current = null;
-        }
-
-        toaster.create({
-          title: "Files Ready",
-          description: "Your documents have been processed successfully!",
-          type: "success",
-        });
-
-        if (pendingMessageRef.current) {
-          streamMessage(pendingMessageRef.current);
-          pendingMessageRef.current = null;
-        }
-      } else if (
-        statusLower.includes("fail") ||
-        statusLower.includes("error")
-      ) {
-        setIsWaitingForIndexing(false);
-        if (loadingToastId.current) {
-          toaster.dismiss(loadingToastId.current);
-          loadingToastId.current = null;
-        }
-        toaster.create({
-          title: "Processing Failed",
-          description: data.status,
-          type: "error",
-        });
-        pendingMessageRef.current = null;
-        setSending(false);
-      }
-    }
-  }, [isSuccess, data, streamMessage, setSending]);
+  const {
+    addMessage,
+    files,
+    setFiles,
+    kb_id,
+    context,
+    current_session,
+    isWaitingForIndexing,
+    setIsWaitingForIndexing,
+    setPendingMessage,
+  } = useSessionStore();
 
   // Auto-resize logic using controlled height
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -268,24 +162,6 @@ const SendRequest = () => {
       textareaRef.current.style.height = "40px";
     }
   }, [input]);
-
-  useEffect(() => {
-    if (isError) {
-      setIsWaitingForIndexing(false);
-      pendingMessageRef.current = null;
-
-      if (loadingToastId.current) {
-        toaster.dismiss(loadingToastId.current);
-        loadingToastId.current = null;
-      }
-
-      toaster.create({
-        title: "File Processing Error",
-        description: error.message,
-        type: "error",
-      });
-    }
-  }, [isError, error]);
 
   const handleSendMessage = async () => {
     if (!input.trim() || sending) return;
@@ -326,7 +202,6 @@ const SendRequest = () => {
 
     try {
       if (currentFiles.length > 0) {
-        hasShownReadyToaster.current = false;
         const new_kb_id = v4();
         useSessionStore.getState().setKbId(new_kb_id);
         useSessionStore.getState().setContext("notes");
@@ -334,14 +209,7 @@ const SendRequest = () => {
           kb_id: new_kb_id,
           source_type: "pdf",
         });
-        pendingMessageRef.current = messageContent;
-
-        loadingToastId.current = toaster.create({
-          description: "Initializing document ingestion...",
-          type: "info",
-          closable: true,
-          duration: 3000,
-        });
+        setPendingMessage(messageContent);
 
         const res = await uploadDocument(
           currentFiles,
@@ -360,18 +228,13 @@ const SendRequest = () => {
     } catch (err) {
       console.error("Error:", err);
 
-      if (loadingToastId.current) {
-        toaster.dismiss(loadingToastId.current);
-        loadingToastId.current = null;
-      }
-
       toaster.create({
         title: "Error",
         description:
           err instanceof Error ? err.message : "An unexpected error occurred.",
         type: "error",
       });
-      pendingMessageRef.current = null;
+      setPendingMessage(null);
       setIsWaitingForIndexing(false);
       setSending(false);
     }
@@ -388,13 +251,6 @@ const SendRequest = () => {
 
   return (
     <Box {...box()}>
-      {/* Show beautiful RAG Status Indicator if indexing */}
-      <AnimatePresence>
-        {isWaitingForIndexing && (
-          <RagStatusIndicator status={data?.status || "Initializing..."} />
-        )}
-      </AnimatePresence>
-
       {/* Show beautiful typing bubble when we're waiting for initial response */}
       {sending && !isStreaming && !isWaitingForIndexing && (
         <MotionBox

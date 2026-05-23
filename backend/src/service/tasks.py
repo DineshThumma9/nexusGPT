@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from typing import List
 from uuid import UUID
@@ -45,14 +46,14 @@ def update_kb(kb_id, status):
 @queue.task(time_limit=3600)
 def ingest_git_repo_task(req_dict: dict, kb_id: str):
     """Celery background task to fully ingest a Github repository."""
-    redis.set(f"kb:{kb_id}:status", "indexing", ex=86400)
+    redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Indexing initialized..."}), ex=86400)
     update_kb(kb_id=kb_id, status=KBStatus.INDEXING)
 
     try:
         req = GitRequest(**req_dict)
 
         # 1. FETCHING
-        redis.set(f"kb:{kb_id}:status", "fetching repo...", ex=86400)
+        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Fetching repo..."}), ex=86400)
 
         # Run async Github fetch synchronously inside Celery worker
         try:
@@ -75,11 +76,11 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str):
             )
 
         # 2. BUILDING HIERARCHY
-        redis.set(f"kb:{kb_id}:status", "analyzing structure...", ex=86400)
+        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Analyzing structure..."}), ex=86400)
         enriched_docs = build_hierarchy(documents)
 
         # 3. SPLITTING AND PARSING AST
-        redis.set(f"kb:{kb_id}:status", "parsing code chunks...", ex=86400)
+        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Parsing code chunks..."}), ex=86400)
         (
             batch_files,
             batch_file_dir_relations,
@@ -91,7 +92,7 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str):
         ) = build_relation_and_index(enriched_docs)
 
         # 4. INDEXING TO DATABASES (Neo4j & Qdrant)
-        redis.set(f"kb:{kb_id}:status", "uploading to databases...", ex=86400)
+        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Uploading to databases..."}), ex=86400)
         insert_to_databases(
             kb_id=kb_id,
             batch_directories=batch_directories,
@@ -104,7 +105,7 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str):
         )
 
         # 5. READY
-        redis.set(f"kb:{kb_id}:status", "ready", ex=86400)
+        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "ready", "detail": "Ingestion complete"}), ex=86400)
         update_kb(kb_id=kb_id, status=KBStatus.READY)
 
         print(f"Ingestion pipeline completed successfully for Git KB: {kb_id}")
@@ -114,25 +115,50 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str):
 
         traceback.print_exc()
 
-        redis.set(f"kb:{kb_id}:status", f"failed: {str(e)}", ex=86400)
+        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "failed", "detail": str(e)}), ex=86400)
 
         update_kb(kb_id, KBStatus.FAILED)
 
         raise e
 
 
+
+from langchain_community.document_loaders import DirectoryLoader
+from langchain_community.document_loaders import TextLoader, UnstructuredWordDocumentLoader, UnstructuredPowerPointLoader, PyPDFLoader
+
+# Map file extensions to their respective LangChain loader classes
+map_loaders = {
+    ".txt": TextLoader,
+    ".docx": UnstructuredWordDocumentLoader,
+    ".doc": UnstructuredWordDocumentLoader,
+    ".pptx": UnstructuredPowerPointLoader,
+    ".ppt": UnstructuredPowerPointLoader,
+    ".pdf": PyPDFLoader
+}
+
 @queue.task(time_limit=120)
 def ingest_pdf_task(file_paths: List[str], kb_id: str):
     """Celery background task to fully ingest uploaded PDF files."""
     ns = str(kb_id)
-    redis.set(f"kb:{kb_id}:status", "indexing", ex=86400)
+    redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Indexing initialized..."}), ex=86400)
     update_kb(kb_id=kb_id, status=KBStatus.INDEXING)
 
     try:
         all_nodes = []
         for file_path in file_paths:
             print(f"Ingesting PDF file path: {file_path}")
-            loader = PyPDFLoader(file_path)
+            
+
+            file_ext = os.path.splitext(file_path)[1].lower()
+            LoaderClass = map_loaders.get(file_ext)
+            if not LoaderClass:
+                print(f"Skipping unsupported file extension: {file_ext}")
+                continue
+            
+            loader = LoaderClass(file_path)
+
+
+
             splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=24)
             nodes = loader.load_and_split(splitter)
 
@@ -156,7 +182,7 @@ def ingest_pdf_task(file_paths: List[str], kb_id: str):
             )
             store.add_documents(all_nodes)
 
-        redis.set(f"kb:{kb_id}:status", "ready", ex=86400)
+        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "ready", "detail": "Ingestion complete"}), ex=86400)
         update_kb(kb_id=kb_id, status=KBStatus.READY)
 
     except Exception as e:
@@ -164,6 +190,6 @@ def ingest_pdf_task(file_paths: List[str], kb_id: str):
 
         traceback.print_exc()
 
-        redis.set(f"kb:{kb_id}:status", f"failed: {str(e)}", ex=86400)
+        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "failed", "detail": str(e)}), ex=86400)
         update_kb(kb_id=kb_id, status=KBStatus.FAILED)
         raise e

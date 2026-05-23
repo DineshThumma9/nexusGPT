@@ -157,6 +157,7 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
                 display: "flex",
                 flexDirection: "column",
                 height: "100%",
+                gap: "16px",
               }}
             >
               <SideBarNav />

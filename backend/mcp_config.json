@@ -1,0 +1,155 @@
+{
+  "mcpServers": {
+    "Figma": {
+      "url": "https://mcp.figma.com/mcp",
+      "type": "http"
+    },
+    "postman_mcp_server": {
+      "type": "http",
+      "url": "https://mcp.postman.com/minimal",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    },
+    "microsoft/markitdown": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "markitdown-mcp@0.0.1a4"
+      ],
+      "gallery": "https://api.mcp.github.com",
+      "version": "1.0.0"
+    },
+    "io.github.github/github-mcp-server": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "gallery": "https://api.mcp.github.com",
+      "version": "0.33.0"
+    },
+    "makenotion/notion-mcp-server": {
+      "type": "http",
+      "url": "https://mcp.notion.com/sse",
+      "gallery": "https://api.mcp.github.com",
+      "version": "1.0.0"
+    },
+    "com.figma.mcp/mcp": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp",
+      "gallery": "https://api.mcp.github.com",
+      "version": "1.0.3"
+    },
+    "GitLab": {
+      "url": "https://gitlab.com/api/v4/mcp",
+      "type": "http"
+    },
+    "io.github.tavily-ai/tavily-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "tavily-mcp@0.2.15"
+      ],
+      "env": {
+        "TAVILY_API_KEY": "${input:TAVILY_API_KEY}",
+        "DEFAULT_PARAMETERS": "${input:DEFAULT_PARAMETERS}"
+      },
+      "gallery": "https://api.mcp.github.com",
+      "version": "0.2.15"
+    },
+    "com.postman/postman-mcp-server": {
+      "type": "http",
+      "url": "https://mcp.postman.com/mcp",
+      "headers": {
+        "Authorization": "${input:Authorization}"
+      },
+      "gallery": "https://api.mcp.github.com",
+      "version": "2.8.4"
+    },
+    "huggingface/hf-mcp-server": {
+      "type": "http",
+      "url": "https://huggingface.co/mcp?login",
+      "gallery": "https://api.mcp.github.com",
+      "version": "1.0.0"
+    },
+    "io.github.ChromeDevTools/chrome-devtools-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "--registry",
+        "https://registry.npmjs.org",
+        "chrome-devtools-mcp@0.21.0"
+      ],
+      "gallery": "https://api.mcp.github.com",
+      "version": "0.21.0"
+    },
+    "firecrawl/firecrawl-mcp-server": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "firecrawl-mcp@latest"
+      ],
+      "env": {
+        "FIRECRAWL_API_KEY": "${input:api_key}"
+      },
+      "gallery": "https://api.mcp.github.com",
+      "version": "1.0.0"
+    },
+    "microsoft/playwright-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ],
+      "gallery": "https://api.mcp.github.com",
+      "version": "0.0.1-seed"
+    },
+    "io.github.upstash/context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@upstash/context7-mcp@1.0.31"
+      ],
+      "env": {
+        "CONTEXT7_API_KEY": "${input:CONTEXT7_API_KEY}"
+      },
+      "gallery": "https://api.mcp.github.com",
+      "version": "1.0.31"
+    },
+    "Docs by LangChain": {
+      "url": "https://docs.langchain.com/mcp",
+      "type": "http"
+    }
+  },
+  "inputs": [
+    {
+      "id": "TAVILY_API_KEY",
+      "type": "promptString",
+      "description": "Your Tavily API key from tavily.com",
+      "password": true
+    },
+    {
+      "id": "DEFAULT_PARAMETERS",
+      "type": "promptString",
+      "description": "JSON string with default search parameters (e.g., {\"include_images\": true, \"max_results\": 15})",
+      "password": false
+    },
+    {
+      "id": "Authorization",
+      "type": "promptString",
+      "description": "A Bearer token and a valid Postman API key for authentication.",
+      "password": true
+    },
+    {
+      "id": "api_key",
+      "type": "promptString",
+      "description": "your API key",
+      "password": true
+    },
+    {
+      "id": "CONTEXT7_API_KEY",
+      "type": "promptString",
+      "description": "API key for authentication",
+      "password": true
+    }
+  ]
+}

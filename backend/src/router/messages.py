@@ -15,6 +15,9 @@ from src.router.auth import get_current_user
 from src.service.set_up_service import build_agent, get_llm_instance
 from src.service.tools import make_tools
 
+from langchain_core.messages.ai import AIMessageChunk
+
+
 router = APIRouter()
 
 
@@ -61,7 +64,7 @@ async def message_stream(
         tools = await make_tools(
             vector_db=vector_db,
             neo4j_ns=ns,
-            graph=get_graph(),
+            graph_obj=get_graph(),
             source_type=source_type,
         )
     else:
@@ -90,6 +93,8 @@ async def message_stream(
     )
 
 
+
+
 async def _stream(agent, message: str, config: dict, request: Request):
     yield f"data: {json.dumps({'type': 'start', 'content': ''})}\n\n"
     full = ""
@@ -105,9 +110,7 @@ async def _stream(agent, message: str, config: dict, request: Request):
             if hasattr(msg_chunk, "content") and msg_chunk.content:
                 # LangGraph might yield HumanMessageChunk or ToolMessageChunk too.
                 # Check if it's an AI message, and if its content is a string.
-                if msg_chunk.__class__.__name__ == "AIMessageChunk" and isinstance(
-                    msg_chunk.content, str
-                ):
+                if isinstance(msg_chunk, AIMessageChunk) and isinstance(msg_chunk.content, str):
                     token = msg_chunk.content
                     full += token
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"

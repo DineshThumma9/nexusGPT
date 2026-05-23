@@ -7,6 +7,7 @@ import Layout from "./pages/Layout.tsx";
 import ChatPage from "./pages/ChatPage.tsx";
 import PublicRoute from "./routes/PublicRoute";
 import PrivateRoute from "./routes/PrivateRoute";
+import ApiKeysPage from "./pages/ApiKeysPage.tsx";
 
 const router = createBrowserRouter([
   {
@@ -43,6 +44,14 @@ const router = createBrowserRouter([
         element: (
           <PrivateRoute>
             <ChatPage />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "app/api-keys",
+        element: (
+          <PrivateRoute>
+            <ApiKeysPage />
           </PrivateRoute>
         ),
       },

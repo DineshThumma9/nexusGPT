@@ -7,6 +7,7 @@ import EmptyState from "./EmptyState.tsx";
 import UserRequest from "./UserRequest.tsx";
 import AIResponse from "./AIResponse.tsx";
 import { motion, AnimatePresence } from "framer-motion";
+import RagStatusMessage from "./RagStatusMessage.tsx";
 
 const Response = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -124,6 +125,7 @@ const Response = () => {
                 </motion.div>
               ))}
             </AnimatePresence>
+            <RagStatusMessage />
           </VStack>
         </Box>
       )}

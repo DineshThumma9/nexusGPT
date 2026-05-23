@@ -59,7 +59,11 @@ def build_tree(tree_lis):
 
 
 def get_dir_struct(req):
-    repo = g.get_repo(f"{req.owner}/{req.repo}")
+    if hasattr(req, "token") and req.token:
+        github_client = Github(auth=Auth.Token(req.token))
+    else:
+        github_client = g
+    repo = github_client.get_repo(f"{req.owner}/{req.repo}")
     tree_sha = repo.default_branch
     tree = repo.get_git_tree(sha=tree_sha, recursive=True)
     lis = []
@@ -94,7 +98,7 @@ async def get_mcp_tools():
 async def make_tools(
     vector_db: Any,
     neo4j_ns: str,
-    graph: Neo4jGraph,
+    graph_obj: Neo4jGraph,
     source_type: str = "github",
 ) -> list:
     """
@@ -104,16 +108,25 @@ async def make_tools(
 
     from langchain_groq import ChatGroq as Groq
 
-    graph_chain = GraphCypherQAChain.from_llm(
+    cypher_chain = GraphCypherQAChain.from_llm(
         cypher_llm=Groq(model="compound-beta"),
         qa_llm=Groq(model="compound-beta"),
-        graph=graph,
+        graph=graph_obj,
         allow_dangerous_requests=True,
         verbose=True,
     )
 
+    @tool
+    def ask_architecture(question: str) -> str:
+        """Ask natural language questions about the codebase architecture, file dependencies, and structural relationships. (e.g. 'What files import X?')"""
+        try:
+            res = cypher_chain.invoke({"query": question})
+            return res.get("result", str(res))
+        except Exception as e:
+            return f"Error querying architecture graph: {e}"
+
     def _resolve_path(target: str) -> str | None:
-        res = graph.query(
+        res = graph_obj.query(
             "MATCH (f:File {ns: $ns}) RETURN f.id AS path", {"ns": neo4j_ns}
         )
         paths = [r["path"] for r in res]
@@ -144,7 +157,7 @@ async def make_tools(
     @tool
     def get_project_hierarchy() -> str:
         """Returns the full file tree of the loaded repository."""
-        res = graph.query(
+        res = graph_obj.query(
             "MATCH (f:File {ns: $ns}) RETURN f.id AS path", {"ns": neo4j_ns}
         )
         paths = [r["path"] for r in res]
@@ -156,7 +169,7 @@ async def make_tools(
         actual = _resolve_path(file_path)
         if not actual:
             return f"File '{file_path}' not found."
-        result = graph.query(
+        result = graph_obj.query(
             "MATCH (f:File {id: $path, ns: $ns})-[:CONTAINS]->(s:Symbol) RETURN s.type AS kind, s.name AS name",
             {"path": actual, "ns": neo4j_ns},
         )
@@ -189,12 +202,12 @@ async def make_tools(
         if not actual:
             return f"File '{file_path}' not found."
         if direction == "imports":
-            res = graph.query(
+            res = graph_obj.query(
                 "MATCH (f:File {id: $p, ns: $ns})-[:IMPORTS]->(m:Module) RETURN m.name AS name",
                 {"p": actual, "ns": neo4j_ns},
             )
         else:
-            res = graph.query(
+            res = graph_obj.query(
                 "MATCH (f:File {ns: $ns})-[:IMPORTS]->(m:Module) WHERE m.name CONTAINS $t RETURN f.id AS name",
                 {"t": file_path, "ns": neo4j_ns},
             )
@@ -219,23 +232,66 @@ async def make_tools(
     if str(source_type).lower() in ["pdf", "url", "notes"]:
         return [search_documents]
 
-    mcp_tools = await get_mcp_tools()
+    try:
+        mcp_tools = await get_mcp_tools()
+    except Exception as e:
+        import logging
+
+        logging.getLogger("tools").error(f"Error loading MCP tools: {e}")
+        mcp_tools = []
+    
+    
     return [
         get_project_context,
         get_project_hierarchy,
         get_file_context,
         search_code,
         query_dependencies,
+        ask_architecture,
         DuckDuckGoSearchRun(),
     ] + mcp_tools
 
+
+
+from langchain.agents.middleware.types import AgentMiddleware
+from langchain_core.messages import RemoveMessage
+
+class CleanToolMessagesMiddleware(AgentMiddleware):
+    """
+    Cleans up orphaned ToolMessages that lost their parent AIMessage
+    due to context window summarization. This prevents strict APIs like
+    Mistral from crashing with a 400 Bad Request error.
+    """
+    def before_model(self, state, runtime):
+        messages = state.get("messages", [])
+        if not messages:
+            return None
+        
+        ai_tool_call_ids = set()
+        for msg in messages:
+            if msg.type == "ai" and getattr(msg, "tool_calls", None):
+                for tc in msg.tool_calls:
+                    if tc.get("id"):
+                        ai_tool_call_ids.add(tc["id"])
+                        
+        to_remove = []
+        for msg in messages:
+            if msg.type == "tool":
+                if getattr(msg, "tool_call_id", None) not in ai_tool_call_ids:
+                    if hasattr(msg, "id") and msg.id:
+                        to_remove.append(RemoveMessage(id=msg.id))
+                    
+        if to_remove:
+            return {"messages": to_remove}
+        return None
 
 
 def middleware_setup():
     summarization = SummarizationMiddleware(
         model=ChatGroq(model="compound_beta"),
         # Your trigger looks fine, but tweak keep/fraction if you want more raw buffer
-        trigger=[("messages", 10), ("fraction", 0.8), ("keep", 8)],
+        trigger=[("messages", 10), ("tokens", 6000)],
+        keep=("messages",8),
         summarization_prompt=summarization_prompt,
     )
     call_tracker = ModelCallLimitMiddleware(
@@ -243,7 +299,9 @@ def middleware_setup():
     )
 
     tool_tracker = ToolCallLimitMiddleware(
-        thread_limit=10, run_limit=3, exit_behavior="continue"
+        thread_limit=50, run_limit=50, exit_behavior="continue"
     )
+    
+    orphan_cleaner = CleanToolMessagesMiddleware()
 
-    return [summarization, call_tracker, tool_tracker]
+    return [summarization, orphan_cleaner, call_tracker, tool_tracker]

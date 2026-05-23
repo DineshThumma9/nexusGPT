@@ -11,6 +11,10 @@ export type SessionState = {
   isLoading: boolean;
   isStreaming: boolean;
   sending: boolean;
+  isWaitingForIndexing: boolean;
+  indexingStatus: string;
+  indexingDetail: string;
+  pendingMessage: string | null;
   files: File[];
   shouldStream: boolean;
   context: "code" | "notes" | "vanilla";
@@ -30,6 +34,9 @@ export type SessionState = {
   setSending: (sending: boolean) => void;
   setLoading: (loading: boolean) => void;
   setStreaming: (streaming: boolean) => void;
+  setIsWaitingForIndexing: (waiting: boolean) => void;
+  setIndexingState: (status: string, detail: string) => void;
+  setPendingMessage: (message: string | null) => void;
   setShouldStream: (streaming: boolean) => void;
   clear: () => void;
   clearFiles: () => void;
@@ -64,6 +71,10 @@ const useSessionStore = create<SessionState>()(
       isStreaming: false,
       shouldStream: false,
       sending: false,
+      isWaitingForIndexing: false,
+      indexingStatus: "",
+      indexingDetail: "",
+      pendingMessage: null,
       context: "vanilla",
       kb_id: null,
 
@@ -171,6 +182,9 @@ const useSessionStore = create<SessionState>()(
 
       setLoading: (loading) => set({ isLoading: loading }),
       setStreaming: (streaming) => set({ isStreaming: streaming }),
+      setIsWaitingForIndexing: (waiting) => set({ isWaitingForIndexing: waiting }),
+      setIndexingState: (status, detail) => set({ indexingStatus: status, indexingDetail: detail }),
+      setPendingMessage: (message) => set({ pendingMessage: message }),
 
       clearFiles: () => {
         set({ files: [] });

@@ -291,6 +291,7 @@ dependencies = [
     { name = "redis" },
     { name = "sqlmodel" },
     { name = "starlette" },
+    { name = "tenacity" },
     { name = "tree-sitter-language-pack" },
     { name = "uvicorn" },
 ]
@@ -348,6 +349,7 @@ requires-dist = [
     { name = "redis", specifier = ">=5.2.0" },
     { name = "sqlmodel", specifier = ">=0.0.38" },
     { name = "starlette", specifier = ">=0.46.2" },
+    { name = "tenacity", specifier = ">=9.1.4" },
     { name = "tree-sitter-language-pack", specifier = ">=1.8.1" },
     { name = "uvicorn", specifier = "==0.47.0" },
 ]

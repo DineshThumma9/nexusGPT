@@ -16,6 +16,8 @@ from qdrant_client.models import (
     VectorParams,
 )
 
+from langchain_community.embeddings import JinaEmbeddings
+
 
 load_dotenv()
 
@@ -59,7 +61,7 @@ def get_code_embeddings():
         _code_embeddings = VoyageAIEmbeddings(
             model="voyage-code-3",
             api_key=os.getenv("VOYAGE_API_KEY"),
-            batch_size = 175
+            batch_size=256
         )
     return _code_embeddings
 
@@ -89,7 +91,7 @@ def _setup_collections(client: QdrantClient):
                 client.create_collection(
                     collection_name=name,
                     vectors_config=models.VectorParams(
-                        size=2048, distance=models.Distance.COSINE
+                        size=1024, distance=models.Distance.COSINE
                     ),
                 )
             # Ensure native Qdrant multi-tenancy optimization

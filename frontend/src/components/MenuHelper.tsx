@@ -20,7 +20,8 @@ interface Props {
   onDoubleClick?: (selected: string) => void;
   selected?: string;
   disabled?: boolean;
-  allowManualInput?: boolean; // New prop to enable manual input
+  allowManualInput?: boolean;
+  formatOption?: (option: string) => string;
 }
 
 const MenuHelper = ({
@@ -31,6 +32,7 @@ const MenuHelper = ({
   selected,
   disabled,
   allowManualInput,
+  formatOption,
 }: Props) => {
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [manualInput, setManualInput] = useState("");
@@ -45,22 +47,19 @@ const MenuHelper = ({
 
   const handleItemClick = (option: string) => {
     if (!onDoubleClick) {
-      // If no double-click handler, just do single click
       onSelect(option);
       return;
     }
 
     if (clickTimeoutRef.current) {
-      // This is a double-click
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
       onDoubleClick(option);
     } else {
-      // This might be a single-click, wait to see if there's another click
       clickTimeoutRef.current = setTimeout(() => {
         onSelect(option);
         clickTimeoutRef.current = null;
-      }, 300); // 300ms delay to detect double-click
+      }, 300);
     }
   };
 
@@ -71,11 +70,19 @@ const MenuHelper = ({
     }
   };
 
+  const displaySelected = selected
+    ? formatOption
+      ? formatOption(selected)
+      : selected
+    : title;
+
   return (
     <Menu.Root>
       <MenuTrigger asChild>
         <Button css={{ menuHelper: {} }} disabled={disabled}>
-          {selected?.slice(0, 25) || title}
+          {displaySelected.length > 25
+            ? displaySelected.slice(0, 25) + "..."
+            : displaySelected}
           <ChevronDownIcon />
         </Button>
       </MenuTrigger>
@@ -86,6 +93,8 @@ const MenuHelper = ({
             bg="bg.surface"
             borderColor="border.default"
             boxShadow="0 4px 12px rgba(0, 0, 0, 0.1)"
+            maxH="400px"
+            overflowY="auto"
           >
             {allowManualInput && (
               <>
@@ -142,7 +151,7 @@ const MenuHelper = ({
                 }
                 transition="all 0.2s ease"
               >
-                {option.split("-")}
+                {formatOption ? formatOption(option) : option}
               </Menu.Item>
             ))}
           </Menu.Content>

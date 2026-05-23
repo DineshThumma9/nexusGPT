@@ -17,7 +17,6 @@ from src.service.auth_service import (
     SECRET_KEY,
     create_tokens,
     get_current_user,
-    pwd_context,
 )
 
 router = APIRouter()

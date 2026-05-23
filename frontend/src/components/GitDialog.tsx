@@ -43,6 +43,7 @@ export const GitRequestSchema = z.object({
   file_extension_include: z.array(z.string()).optional(),
   file_extension_exclude: z.array(z.string()).optional(),
   files: z.array(z.string()).optional(),
+  token: z.string().optional(),
 });
 
 export type GitRequestSchema = z.infer<typeof GitRequestSchema>;
@@ -139,6 +140,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
   const [repo, setRepo] = useState("");
   const [branch, setBranch] = useState("main");
   const [commit, setCommit] = useState("");
+  const [token, setToken] = useState("");
 
   const [dirInput, setDirInput] = useState("");
   const [fileExtInput, setFileExtInput] = useState("");
@@ -190,6 +192,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
         owner: owner.trim(),
         branch: branch.trim() || "main",
         commit: commit.trim() || undefined,
+        token: token.trim() || undefined,
       };
 
       const res = await ragAPI.post("/tree", body, {
@@ -258,7 +261,6 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
       return;
     }
 
-    onConfirm();
     setLoading(true);
 
     try {
@@ -283,6 +285,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
         file_extension_exclude:
           fileExtOption[0] === "Exclude" ? parsedExts : undefined,
         files: explorer ? selectedFiles : undefined,
+        token: token.trim() || undefined,
       });
 
       const new_kb_id = v4();
@@ -295,22 +298,9 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
         });
       }
 
-      const res = gitFilesUpload(res_body, current_session, new_kb_id);
-
-      toaster.promise(res, {
-        success: {
-          title: "Upload Complete",
-          description: "Git repository connected and data indexed.",
-        },
-        error: {
-          title: "Error Has occured",
-          description: "Git repository isn't connected and data indexed.",
-        },
-        loading: {
-          title: "Loading data ",
-          description: "Git repository is being connected and data indexed.",
-        },
-      });
+      useSessionStore.getState().setIsWaitingForIndexing(true);
+      await gitFilesUpload(res_body, current_session, new_kb_id);
+      onConfirm(); // Close dialog after starting upload
     } catch (error) {
       console.error("Git upload error:", error);
       toaster.create({
@@ -472,6 +462,24 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                         />
                       </Field.Root>
                     </HStack>
+
+                    {/* Private GitHub Token */}
+                    <Field.Root>
+                      <Field.Label
+                        color="fg"
+                        fontSize="sm"
+                        fontWeight="medium"
+                      >
+                        Private GitHub Token (optional)
+                      </Field.Label>
+                      <Input
+                        type="password"
+                        placeholder="ghp_..."
+                        value={token}
+                        onChange={(e) => setToken(e.target.value)}
+                        {...inputStyles}
+                      />
+                    </Field.Root>
 
                     {/* Directory Filters */}
                     <VStack gap={4} align="stretch">

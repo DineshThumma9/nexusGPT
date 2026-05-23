@@ -14,6 +14,8 @@ export type InitState = {
   providerModels: Map<string, string[]>;
   username: string | null;
   email: string | null;
+  fetchedModels: Record<string, string[]> | null;
+  lastFetchedModelsTime: number | null;
 
   setCurrentLLMProvider: (llm: string) => void;
   setModelMap: (modelMap: string[]) => void;
@@ -23,6 +25,7 @@ export type InitState = {
   setEmail: (email: string) => void;
   setCurrentAPIProvider: (provider: string) => void;
   setCurrentAPIKey: (key: string) => void;
+  setFetchedModels: (models: Record<string, string[]> | null, time: number | null) => void;
   clearInit: () => void;
 };
 
@@ -38,6 +41,8 @@ export const useInitStore = create<InitState>()(
       providerModels: providers_models,
       email: null,
       username: null,
+      fetchedModels: null,
+      lastFetchedModelsTime: null,
 
       setCurrentLLMProvider: (provider) =>
         set({ currentLLMProvider: provider }),
@@ -52,6 +57,8 @@ export const useInitStore = create<InitState>()(
       setCurrentAPIKey: (key) => {
         set({ currentAPIKey: key });
       },
+      setFetchedModels: (models, time) =>
+        set({ fetchedModels: models, lastFetchedModelsTime: time }),
       clearInit: () =>
         set({
           currentAPIKey: "",
@@ -61,6 +68,8 @@ export const useInitStore = create<InitState>()(
           email: "",
           username: "",
           dialogOpen: false,
+          fetchedModels: null,
+          lastFetchedModelsTime: null,
         }),
     }),
     {
@@ -72,6 +81,8 @@ export const useInitStore = create<InitState>()(
         username: state.username,
         currentAPIProvider: state.currentAPIProvider,
         currentAPIKey: state.currentAPIKey,
+        fetchedModels: state.fetchedModels,
+        lastFetchedModelsTime: state.lastFetchedModelsTime,
       }),
     },
   ),

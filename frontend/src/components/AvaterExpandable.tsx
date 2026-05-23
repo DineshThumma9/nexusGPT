@@ -10,6 +10,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { BiLogOut, BiUser } from "react-icons/bi";
+import { FiSettings, FiFileText } from "react-icons/fi";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "./ui/menu.tsx";
 import { useAuth } from "../hooks/useAuth.ts";
 import { useNavigate } from "react-router-dom";
@@ -18,6 +19,7 @@ import { GitBranch } from "lucide-react";
 import { ColorModeToggle } from "./ColorModeToggle";
 import { useState } from "react";
 import GitDialog from "./GitDialog.tsx";
+import { McpConfigDialog } from "./McpConfigDialog.tsx";
 
 const AvaterExpandable = () => {
   const avatarButton = {
@@ -109,6 +111,7 @@ const AvaterExpandable = () => {
   };
 
   const [dialog, setDialog] = useState(false);
+  const [mcpDialogOpen, setMcpDialogOpen] = useState(false);
 
   const handleGitDialog = () => {
     setDialog(false);
@@ -135,6 +138,48 @@ const AvaterExpandable = () => {
         }}
       >
         <GitBranch size={16} />
+      </IconButton>
+
+      <IconButton
+        aria-label="API Settings"
+        onClick={() => navigate("/app/api-keys")}
+        size="md"
+        variant="ghost"
+        bg="transparent"
+        color={{ base: "brand.700", _dark: "brand.600" }}
+        transition="all 0.2s ease"
+        _hover={{
+          bg: { base: "brand.50", _dark: "brand.950" },
+          color: { base: "brand.800", _dark: "brand.500" },
+          transform: "scale(1.05)",
+        }}
+        _active={{
+          bg: { base: "brand.100", _dark: "brand.900" },
+          transform: "scale(0.95)",
+        }}
+      >
+        <FiSettings size={16} />
+      </IconButton>
+
+      <IconButton
+        aria-label="MCP Config"
+        onClick={() => setMcpDialogOpen(true)}
+        size="md"
+        variant="ghost"
+        bg="transparent"
+        color={{ base: "brand.700", _dark: "brand.600" }}
+        transition="all 0.2s ease"
+        _hover={{
+          bg: { base: "brand.50", _dark: "brand.950" },
+          color: { base: "brand.800", _dark: "brand.500" },
+          transform: "scale(1.05)",
+        }}
+        _active={{
+          bg: { base: "brand.100", _dark: "brand.900" },
+          transform: "scale(0.95)",
+        }}
+      >
+        <FiFileText size={16} />
       </IconButton>
 
       <ColorModeToggle />
@@ -214,6 +259,12 @@ const AvaterExpandable = () => {
           <GitDialog
             onCancel={() => setDialog(false)}
             onConfirm={handleGitDialog}
+          />
+        )}
+
+        {mcpDialogOpen && (
+          <McpConfigDialog
+            onClose={() => setMcpDialogOpen(false)}
           />
         )}
       </VStack>

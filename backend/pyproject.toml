@@ -59,6 +59,7 @@ dependencies = [
     "langsmith>=0.8.5",
     "langchain-voyageai>=0.3.3",
     "langchain-nomic>=0.0.1",
+    "tenacity>=9.1.4",
 ]
 
 [dependency-groups]

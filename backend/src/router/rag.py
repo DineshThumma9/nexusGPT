@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import shutil
@@ -80,7 +81,11 @@ async def git_rag(
     )
 
     # Update Redis status key
-    redis.set(f"kb:{kb_id}:status", "indexing", ex=86400)
+    await redis_client.set(
+        f"kb:{kb_id}:status",
+        json.dumps({"status": "processing", "detail": "Indexing initialized..."}),
+        ex=86400,
+    )
 
     # Trigger Celery Task asynchronously
     ingest_git_repo_task.delay(req.model_dump(), kb_id)
@@ -126,7 +131,11 @@ async def get_rag(
         file_paths.append(file_path)
 
     # Update Redis status key
-    redis.set(f"kb:{kb_id}:status", "indexing", ex=86400)
+    await redis_client.set(
+        f"kb:{kb_id}:status",
+        json.dumps({"status": "processing", "detail": "Indexing initialized..."}),
+        ex=86400,
+    )
 
     # Trigger Celery Task asynchronously
     ingest_pdf_task.delay(file_paths, kb_id)
@@ -155,13 +164,22 @@ async def get_status(kb_id: str, db: Session = Depends(get_db)):
 
         # Check standard namespace key in Redis
         kb_key = f"kb:{kb_id}:status"
-        status = await redis_client.get(kb_key)
+        status_val = await redis_client.get(kb_key)
 
-        if status is not None:
-            if isinstance(status, bytes):
-                status = status.decode()
-            logger.info(f"Redis status for KB {kb_id}: {status}")
-            return {"status": status, "kb_id": kb_id}
+        if status_val is not None:
+            if isinstance(status_val, bytes):
+                status_val = status_val.decode()
+            try:
+                status_data = json.loads(status_val)
+                logger.info(f"Redis status for KB {kb_id}: {status_data['status']}")
+                return {
+                    "status": status_data["status"],
+                    "detail": status_data.get("detail", ""),
+                    "kb_id": kb_id,
+                }
+            except json.JSONDecodeError:
+                # Fallback if old raw string is still in Redis
+                return {"status": "processing", "detail": status_val, "kb_id": kb_id}
 
         # Fallback to Postgres
         kb_uuid = UUID(kb_id)
@@ -172,9 +190,17 @@ async def get_status(kb_id: str, db: Session = Depends(get_db)):
                 kb.status.value if hasattr(kb.status, "value") else str(kb.status)
             )
             logger.info(f"Postgres status for KB {kb_id}: {status_str}")
-            return {"status": status_str.lower(), "kb_id": kb_id}
+            
+            if status_str.upper() == "INDEXING":
+                return {"status": "processing", "detail": "Initializing worker...", "kb_id": kb_id}
+            elif status_str.upper() == "READY":
+                return {"status": "ready", "detail": "Ingestion complete", "kb_id": kb_id}
+            elif status_str.upper() == "FAILED":
+                return {"status": "failed", "detail": "Task failed", "kb_id": kb_id}
+            else:
+                return {"status": status_str.lower(), "detail": status_str, "kb_id": kb_id}
 
-        return {"status": "missing", "kb_id": kb_id}
+        return {"status": "missing", "detail": "Knowledge base not found", "kb_id": kb_id}
     except Exception as e:
         logger.error(f"Error getting status for KB {kb_id}: {e}")
-        return {"error": str(e), "status": "error"}
+        return {"status": "error", "detail": str(e), "kb_id": kb_id}

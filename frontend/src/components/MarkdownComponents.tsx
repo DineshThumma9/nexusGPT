@@ -82,45 +82,23 @@ const CodeComponent = ({ inline, className, children }: CodeComponentProps) => {
   const codeString = getTextContent(children).replace(/\n$/, "");
   const language = match ? match[1] : "";
 
-  // ✅ Handle inline separately
-  if (inline) {
-    // Treat very short inline code without language as plain variable text
-    if (!language && codeString.length <= 6) {
-      return (
-        <Text as="span" color={"colorPalette.500"} fontFamily="inherit">
-          {codeString}
-        </Text>
-      );
-    }
-
-    // Otherwise, render styled inline code
-    return (
-      <Code
-        variant="subtle"
-        size="sm"
-        bg={"bg.panel"}
-        color={"fg"}
-        px={2}
-        py={1}
-        borderRadius="sm"
-        fontFamily="ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace"
-        fontSize="14px"
-        whiteSpace="normal"
-        wordBreak="keep-all"
-        display="inline"
-        verticalAlign="baseline"
-      >
-        {children}
-      </Code>
-    );
-  }
-
-  // ✅ Handle block code
+  // ✅ Handle inline code (or language-less block code inside a <pre>)
   if (!language) {
     return (
-      <Text color={"fg"} fontFamily="inherit">
-        {codeString}
-      </Text>
+      <Box
+        as="code"
+        bg="bg.muted"
+        color="colorPalette.500"
+        px={1.5}
+        py={0.5}
+        borderRadius="md"
+        fontFamily="ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Inconsolata, 'Roboto Mono', monospace"
+        fontSize="0.9em"
+        display="inline"
+        wordBreak="break-word"
+      >
+        {children}
+      </Box>
     );
   }
 
