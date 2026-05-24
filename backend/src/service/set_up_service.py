@@ -25,6 +25,7 @@ api_providers = [
     "OLLAMA",
     "MISTRAL",
     "OPENROUTER",
+    "GROQ",
     "HUGGING FACE",
 ]
 llm_providers = [
@@ -35,6 +36,7 @@ llm_providers = [
     "mistralai",
     "openrouter",
     "huggingface",
+    "groq"
 ]
 
 
@@ -60,31 +62,20 @@ def build_agent(
     The checkpointer (singleton) carries conversation memory across turns.
     """
     system_prompt = (
-        "You are CentralGPT, a highly capable assistant equipped with tools to search "
-        "and retrieve information from the user's loaded knowledge bases (such as files, "
-        "codebases, or documents).\n"
+        "You are CentralGPT, a highly capable AI assistant equipped with a variety of tools to search "
+        "and retrieve information from the user's knowledge bases, which may include codebases, PDFs, "
+        "documents, URLs, or notes.\n\n"
+        "Analyze the user's request and the available tools to determine the best course of action. "
+        "You have the autonomy to choose whichever tool fits the situation best to explore the knowledge base, "
+        "retrieve context, and provide accurate answers. Do not guess information; always rely on your tools first."
     )
+    
     if source_ref and source_type:
-        if source_type.lower() in ["pdf", "url", "notes"]:
-            system_prompt += (
-                f"\nCurrently, the user has uploaded/provided a document to this conversation:\n"
-                f"- Type: {source_type.upper()}\n"
-                f"- Name/Reference: {source_ref}\n\n"
-                f"When asked about this document or its contents, ALWAYS call the `search_documents` tool "
-                f"first to retrieve matching chunks and find relevant details before answering."
-            )
-        elif source_type.lower() == "github":
-            system_prompt += (
-                f"\nCurrently, the user has loaded a GitHub repository to this conversation:\n"
-                f"- Repository: {source_ref}\n\n"
-                f"When asked about this codebase, ALWAYS use the codebase tools (like `get_project_context`, "
-                f"`get_project_hierarchy`, `search_code`, or `get_file_context`) to explore and answer based on the real files. "
-                f"If the user asks about the contents, functions, or classes of a specific file, you MUST use the `get_file_context` tool."
-            )
-    else:
         system_prompt += (
-            "\nWhen asked about files or documents, always use the appropriate search tool "
-            "to retrieve matching context and answer based on the retrieved information."
+            f"\n\nActive Knowledge Base Context:\n"
+            f"- Type: {source_type.upper()}\n"
+            f"- Reference: {source_ref}\n\n"
+            f"Use the relevant tools at your disposal to interact with this specific knowledge base."
         )
 
     return create_agent(
@@ -145,6 +136,7 @@ def get_llm_instance(db=Depends(get_db), user=Depends(get_current_user)):
 
     from langchain.chat_models import init_chat_model
 
+    logger.info(f"Model: {config.model} Provider: {config.provider} API Key: {decrypted_key} `{config.provider}/{config.model}`")
     return init_chat_model(
         model=config.model, model_provider=config.provider, api_key=decrypted_key
     )

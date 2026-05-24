@@ -279,7 +279,7 @@ export const McpConfigDialog = ({ onClose }: Props) => {
             <Dialog.Body {...dialogBody}>
               <VStack gap={4} align="stretch">
                 {/* Custom Tab Switcher */}
-                <HStack gap={2} bg="bg.muted" p={1} borderRadius="xl" self="start">
+                <HStack gap={2} bg="bg.muted" p={1} borderRadius="xl" alignSelf="flex-start">
                   <Button
                     size="sm"
                     variant={activeTab === "edit" ? "solid" : "ghost"}
@@ -347,7 +347,7 @@ export const McpConfigDialog = ({ onClose }: Props) => {
                         ) : (
                           <>
                             <FiAlertTriangle color="var(--chakra-colors-red-500)" size={14} />
-                            <Text fontSize="xs" color="red.500" fontWeight="medium" maxW="300px" isTruncated title={validationError}>
+                            <Text fontSize="xs" color="red.500" fontWeight="medium" maxW="300px" truncate title={validationError}>
                               {validationError}
                             </Text>
                           </>

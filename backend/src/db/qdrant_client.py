@@ -59,9 +59,7 @@ def get_code_embeddings():
     global _code_embeddings
     if _code_embeddings is None:
         _code_embeddings = VoyageAIEmbeddings(
-            model="voyage-code-3",
-            api_key=os.getenv("VOYAGE_API_KEY"),
-            batch_size=256
+            model="voyage-code-3", api_key=os.getenv("VOYAGE_API_KEY"), batch_size=1000
         )
     return _code_embeddings
 
@@ -91,10 +89,11 @@ def _setup_collections(client: QdrantClient):
                 client.create_collection(
                     collection_name=name,
                     vectors_config=models.VectorParams(
-                        size=1024, distance=models.Distance.COSINE
+                        size=1024, distance=models.Distance.COSINE, on_disk=True
                     ),
+                    shard_number=4,
                 )
-            # Ensure native Qdrant multi-tenancy optimization
+
             client.create_payload_index(
                 collection_name=name,
                 field_name="metadata.kb_id",
@@ -140,10 +139,10 @@ vector_db = LazyVectorDB()
 
 
 # Namespace-isolated vector store helper — ns = str(kb_id)
-def get_user_vector_db(ns: str, source_type: str = "github"):
+def get_user_vector_db(ns: str, source_type: str | None = None):
     collection = (
         COLLECTION
-        if str(source_type).lower() in ["pdf", "url", "notes"]
+        if source_type and str(source_type).lower() in ["pdf", "url", "notes"]
         else COLLECTION_CODE
     )
     if collection == COLLECTION_CODE:

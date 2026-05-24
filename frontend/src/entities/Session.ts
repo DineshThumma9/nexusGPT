@@ -5,7 +5,7 @@ const Session = z.object({
   title: z.string().default("New Chat"),
   kb_id: z.string().nullable().optional(),
   source_type: z.string().nullable().optional(),
-  created_at: z.string().default(new Date().toISOString()),
+  created_at: z.string().default(() => new Date().toISOString()),
   updated_at: z.string().optional(),
 });
 

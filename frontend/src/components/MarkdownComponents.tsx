@@ -87,8 +87,8 @@ const CodeComponent = ({ inline, className, children }: CodeComponentProps) => {
     return (
       <Box
         as="code"
-        bg="bg.muted"
-        color="colorPalette.500"
+        bg={{ base: "gray.100", _dark: "gray.800" }}
+        color="fg"
         px={1.5}
         py={0.5}
         borderRadius="md"

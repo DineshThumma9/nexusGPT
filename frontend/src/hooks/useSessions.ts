@@ -10,6 +10,7 @@ import {
   updateSessionTitle,
 } from "../api/session-api.ts";
 import { z } from "zod/v4";
+import { v4 as uuidv4 } from "uuid";
 
 const useSessions = () => {
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -40,49 +41,52 @@ const useSessions = () => {
 
   const createNewSession = async () => {
     try {
-      setLoading(true);
-      const session = await newSession();
+      // Instant optimistic UI updates
+      const newSessionId = uuidv4();
+      
+      const optimisticSession = {
+        session_id: newSessionId,
+        title: "New Chat",
+        created_at: new Date().toISOString(),
+      };
 
-      addSession(session);
-      setCurrentSessionId(session.session_id);
+      addSession(optimisticSession);
+      setCurrentSessionId(newSessionId);
       setContext("vanilla");
       setKbId(Math.random().toString());
-      setTitle("New SessionComponent");
+      setTitle("New Chat");
       clear();
-      return session.session_id;
+
+      // Fire the API call asynchronously in the background
+      newSession(newSessionId).catch((e) => {
+        console.error("Failed to persist new session to backend:", e);
+      });
+
+      return newSessionId;
     } catch (e) {
       console.error("Error in createNewSession:", e);
       throw e;
-    } finally {
-      setLoading(false);
     }
   };
 
   const changeTitle = async (sessionId: string, title: string) => {
     try {
-      setLoading(true);
       if (!current_session) throw new Error("No active session.");
 
-      const newTitle = await updateSessionTitle(sessionId, title);
-      setTitle(newTitle);
-
-      // Update the session in the sessions list reactively
       const currentState = sessionStore.getState();
-      const updatedSessions = currentState.sessions.map((session) =>
-        (session.session_id || session.session_id) === current_session
-          ? {
-              ...session,
-              title: newTitle,
-              updated_at: new Date().toISOString(),
-            }
-          : session,
-      );
-      setSessions(updatedSessions);
+      currentState.updateSession(sessionId, {
+        title: title,
+        updated_at: new Date().toISOString(),
+      });
+      setTitle(title);
+
+      // Fire the API call asynchronously in the background
+      updateSessionTitle(sessionId, title).catch((e) => {
+        console.error("Failed to persist title update to backend:", e);
+      });
     } catch (e) {
       console.error("Error updating title", e);
       throw e;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -123,8 +127,7 @@ const useSessions = () => {
 
   const deleteSessionById = async (session_id: string) => {
     try {
-      setLoading(true);
-      await deleteSession(session_id);
+      // Optimistically remove from UI
       removeSession(session_id);
 
       if (current_session === session_id) {
@@ -132,8 +135,8 @@ const useSessions = () => {
         if (remainingSessions.length > 0) {
           const latestSession = remainingSessions.sort(
             (a, b) =>
-              new Date(a.updated_at || a.created_at).getTime() -
-              new Date(b.updated_at || b.created_at).getTime(),
+              new Date(b.updated_at || b.created_at).getTime() -
+              new Date(a.updated_at || a.created_at).getTime(),
           )[0];
           await getHistory(
             latestSession.session_id || latestSession.session_id!,
@@ -144,11 +147,14 @@ const useSessions = () => {
           setTitle("");
         }
       }
+
+      // Fire the API call asynchronously in the background
+      deleteSession(session_id).catch((e) => {
+        console.error("Failed to delete session on backend:", e);
+      });
     } catch (e) {
       console.error("Error deleting session", e);
       throw e;
-    } finally {
-      setLoading(false);
     }
   };
 

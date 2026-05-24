@@ -26,25 +26,83 @@ from src.service.ingesation import (
 )
 
 
-def update_kb(kb_id, status):
+from langchain_community.document_loaders import DirectoryLoader
+from langchain_community.document_loaders import TextLoader, UnstructuredWordDocumentLoader, UnstructuredPowerPointLoader, PyPDFLoader
 
-    # Update Postgres status to INDEXING
-    db_gen = get_db()
-    db = next(db_gen)
+
+
+from src.db import dbs
+from celery.signals import worker_process_init
+
+@worker_process_init.connect
+def celery_worker_init(*args, **kwargs):
+    """Ensure database connections are clean when celery workers fork."""
+    from src.db.dbs import engine
+    if engine is not None:
+        engine.dispose()
+
+def update_kb(kb_id, status):
+    # Update Postgres status
+    dbs._init_db()
+    db = dbs.SessionLocal()
     try:
-        kb = db.query(KnowledgeBase).filter_by(kb_id=UUID(kb_id)).first()
+        kb = db.query(KnowledgeBase).filter_by(kb_id=kb_id).first()
         if kb:
             kb.status = status
             db.add(kb)
             db.commit()
     except Exception as dbe:
-        print(f"Error updating Postgres KB status to INDEXING: {dbe}")
+        db.rollback()
+        print(f"Error updating Postgres KB status to {status}: {dbe}")
     finally:
-        db_gen.close()
+        db.close()
+
+
+
+import logging
+from datetime import datetime
+from src.db.dbs import SessionLocal
+from src.models.models import Session as SessionModel
+from sqlmodel import select
+
+
+logger = logging.getLogger()
+
+
+@queue.task(time_limit=60)
+def update_session(session_id: str, title: str, user_id: str):  # FIXED: Changed from 'async def' to standard 'def'
+    
+
+    dbs._init_db()  
+    db = dbs.SessionLocal()
+    try:
+
+        session_uuid = UUID(session_id)
+        session_query = select(SessionModel).where(SessionModel.session_id == session_uuid)
+        session = db.execute(session_query).scalars().first()
+        
+        if session and session.title == "New Chat":
+            session.title = title
+            session.updated_at = datetime.utcnow()
+            db.add(session)
+            db.commit()
+            
+            logger.info(f"Updated title for session {session.session_id}: {title}")
+            redis.delete(f"user:{user_id}:sessions")
+        else:
+            logger.warning(f"Session {session_id} not found for title update")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating session title: {str(e)}")
+    finally:
+        db.close()
+    # FIXED: Removed the duplicate, unprotected logger.info from down here
+
+
 
 
 @queue.task(time_limit=3600)
-def ingest_git_repo_task(req_dict: dict, kb_id: str):
+def ingest_git_repo_task(req_dict: dict, kb_id: str, session_id: str = None, user_id: str = None):
     """Celery background task to fully ingest a Github repository."""
     redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Indexing initialized..."}), ex=86400)
     update_kb(kb_id=kb_id, status=KBStatus.INDEXING)
@@ -108,6 +166,9 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str):
         redis.set(f"kb:{kb_id}:status", json.dumps({"status": "ready", "detail": "Ingestion complete"}), ex=86400)
         update_kb(kb_id=kb_id, status=KBStatus.READY)
 
+
+        update_session.delay(session_id=session_id, title=f"{req.owner}/{req.repo} Repo", user_id=user_id)
+
         print(f"Ingestion pipeline completed successfully for Git KB: {kb_id}")
 
     except Exception as e:
@@ -122,10 +183,6 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str):
         raise e
 
 
-
-from langchain_community.document_loaders import DirectoryLoader
-from langchain_community.document_loaders import TextLoader, UnstructuredWordDocumentLoader, UnstructuredPowerPointLoader, PyPDFLoader
-
 # Map file extensions to their respective LangChain loader classes
 map_loaders = {
     ".txt": TextLoader,
@@ -137,7 +194,7 @@ map_loaders = {
 }
 
 @queue.task(time_limit=120)
-def ingest_pdf_task(file_paths: List[str], kb_id: str):
+def ingest_pdf_task(file_paths: List[str], kb_id: str, session_id: str = None, user_id: str = None):
     """Celery background task to fully ingest uploaded PDF files."""
     ns = str(kb_id)
     redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Indexing initialized..."}), ex=86400)
@@ -148,7 +205,6 @@ def ingest_pdf_task(file_paths: List[str], kb_id: str):
         for file_path in file_paths:
             print(f"Ingesting PDF file path: {file_path}")
             
-
             file_ext = os.path.splitext(file_path)[1].lower()
             LoaderClass = map_loaders.get(file_ext)
             if not LoaderClass:
@@ -156,8 +212,6 @@ def ingest_pdf_task(file_paths: List[str], kb_id: str):
                 continue
             
             loader = LoaderClass(file_path)
-
-
 
             splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=24)
             nodes = loader.load_and_split(splitter)
@@ -185,6 +239,10 @@ def ingest_pdf_task(file_paths: List[str], kb_id: str):
         redis.set(f"kb:{kb_id}:status", json.dumps({"status": "ready", "detail": "Ingestion complete"}), ex=86400)
         update_kb(kb_id=kb_id, status=KBStatus.READY)
 
+        first_file = os.path.basename(file_paths[0]) if file_paths else "PDF Upload"
+        update_session.delay(session_id=session_id, title=first_file, user_id=user_id)
+           
+
     except Exception as e:
         import traceback
 
@@ -193,3 +251,5 @@ def ingest_pdf_task(file_paths: List[str], kb_id: str):
         redis.set(f"kb:{kb_id}:status", json.dumps({"status": "failed", "detail": str(e)}), ex=86400)
         update_kb(kb_id=kb_id, status=KBStatus.FAILED)
         raise e
+
+

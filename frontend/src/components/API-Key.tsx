@@ -35,8 +35,13 @@ const APIKey = ({ provider, title, link }: Props) => {
 
   // Sync local state with global state when dialog opens
   useEffect(() => {
-    if (dialogOpen && currentAPIKey) {
-      setAPIKey(currentAPIKey);
+    if (dialogOpen) {
+      if (currentAPIKey) {
+        setAPIKey(currentAPIKey);
+      }
+      setTimeout(() => {
+        ref.current?.focus();
+      }, 50);
     }
   }, [dialogOpen, currentAPIKey]);
 

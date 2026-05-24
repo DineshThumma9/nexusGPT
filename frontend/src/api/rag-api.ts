@@ -10,7 +10,6 @@ export const uploadDocument = async (
 ) => {
   const formData = new FormData();
   files.forEach((file, index) => {
-    console.log(`File ${index}`, file, typeof file, file instanceof File);
     if (file instanceof File) {
       formData.append("files", file);
     } else {
@@ -43,7 +42,6 @@ export const gitFilesUpload = async (
   session_id: string | null,
   kb_id: string | null,
 ) => {
-  console.log(`owner :${body.owner} repo:${body.repo}`);
   const res = await ragAPI.post(
     `/git?session_id=${session_id}&kb_id=${kb_id}`,
     body,
@@ -60,6 +58,14 @@ export const gitFilesUpload = async (
 };
 
 export const getKbStatus = async (kb_id: string) => {
-  const res = await ragAPI.get(`/status?kb_id=${kb_id}`);
+  const res = await ragAPI.get(`/status?kb_id=${kb_id}&_t=${Date.now()}`);
   return res.data;
 };
+export const getMockKbStatus = async (kb_id: string) => {
+  const res = await ragAPI.get(`/mock/status?kb_id=${kb_id}&_t=${Date.now()}`);
+  return res.data;
+};
+
+
+
+

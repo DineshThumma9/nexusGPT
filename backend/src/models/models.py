@@ -70,7 +70,7 @@ class UserLLMConfig(SQLModel, table=True):
 class KnowledgeBase(SQLModel, table=True):
     __tablename__ = "knowledge_bases"
 
-    kb_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    kb_id: UUID = Field(primary_key=True)
     user_id: UUID = Field(foreign_key="users.userid", index=True)
     source_type: KBSourceType
     # For GitHub: "owner/repo@branch" or "owner/repo@sha"
@@ -82,3 +82,15 @@ class KnowledgeBase(SQLModel, table=True):
 
     # The commit SHA of what's indexed — used for cache invalidation
     source_sha: Optional[str] = None
+
+
+
+class UserMCPConfig(SQLModel,table=True):
+    __tablename__ = "mcp_config"
+    i
+    user_id: UUID = Field(foreign_key="users.userid", primary_key=True)
+    server_url:str 
+    auth_header:Optional[str] = None
+    gallery:Optional[str] = None
+    version:Optional[str] = None
+    api_key:Optional[str] = None

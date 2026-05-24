@@ -135,9 +135,6 @@ const LLMModelChooser = () => {
       // 1. Sync API Key / Provider if they exist
       if (state.currentAPIProvider && state.currentAPIKey) {
         try {
-          console.log(
-            `Syncing persisted API provider: ${state.currentAPIProvider}`,
-          );
           await apiKeySelection(state.currentAPIProvider, state.currentAPIKey);
         } catch (error) {
           console.error("Failed to sync API key to backend on mount:", error);
@@ -147,9 +144,6 @@ const LLMModelChooser = () => {
       // 2. Sync LLM Provider if it exists
       if (state.currentLLMProvider) {
         try {
-          console.log(
-            `Syncing persisted LLM provider: ${state.currentLLMProvider}`,
-          );
           await llmSelection(state.currentLLMProvider);
         } catch (error) {
           console.error(
@@ -162,7 +156,6 @@ const LLMModelChooser = () => {
       // 3. Sync Model if it exists
       if (state.currentModel) {
         try {
-          console.log(`Syncing persisted Model: ${state.currentModel}`);
           await modelSelection(state.currentModel);
         } catch (error) {
           console.error("Failed to sync Model to backend on mount:", error);

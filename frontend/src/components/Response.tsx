@@ -35,12 +35,16 @@ const Response = () => {
     py: 8,
   };
 
+  const [isWaitingForIndexing, setIsWaitingForIndexing] = useState(false);
+
   useEffect(() => {
     const unsubscribe = sessionStore.subscribe((state) => {
       setMessages(state.messages);
+      setIsWaitingForIndexing(state.isWaitingForIndexing);
     });
 
     setMessages(sessionStore.getState().messages);
+    setIsWaitingForIndexing(sessionStore.getState().isWaitingForIndexing);
     return unsubscribe;
   }, []);
 
@@ -90,7 +94,7 @@ const Response = () => {
 
   return (
     <Box ref={containerRef} {...box}>
-      {messages.length === 0 ? (
+      {messages.length === 0 && !isWaitingForIndexing ? (
         <EmptyState />
       ) : (
         <Box w="full" py={6}>

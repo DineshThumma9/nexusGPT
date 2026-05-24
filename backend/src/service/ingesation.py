@@ -3,6 +3,9 @@ import os
 from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
+import uuid
+
+from langsmith import traceable
 
 from dotenv import load_dotenv
 from langchain_community.document_loaders import GithubFileLoader, PyPDFLoader
@@ -43,8 +46,6 @@ async def fetch_repo(req: GitRequest) -> List[Document]:
         return True
 
     repo_url = f"https://github.com/{req.owner}/{req.repo}.git"
-    branch = req.branch or "main"
-
     # If the user provides a token, use it for private repositories
     access_token = req.token or os.getenv("GITHUB_API_KEY") or os.getenv("GITHUB_TOKEN")
     if access_token:
@@ -57,17 +58,18 @@ async def fetch_repo(req: GitRequest) -> List[Document]:
     with tempfile.TemporaryDirectory() as temp_dir:
         # Clone the repository
         try:
+            clone_cmd = [
+                "git",
+                "clone",
+                "--depth",
+                "1"
+            ]
+            if req.branch:
+                clone_cmd.extend(["--branch", req.branch])
+            clone_cmd.extend([repo_url, temp_dir])
+
             subprocess.run(
-                [
-                    "git",
-                    "clone",
-                    "--depth",
-                    "1",
-                    "--branch",
-                    branch,
-                    repo_url,
-                    temp_dir,
-                ],
+                clone_cmd,
                 check=True,
                 capture_output=True,
                 text=True,
@@ -99,7 +101,7 @@ async def fetch_repo(req: GitRequest) -> List[Document]:
                                 "source": rel_path,
                                 "path": rel_path,
                                 "repo": f"{req.owner}/{req.repo}",
-                                "branch": branch,
+                                "branch": req.branch or "default",
                             },
                         )
                     )
@@ -258,14 +260,18 @@ def build_relation_and_index(enriched_docs: Dict[str, ProjectNode]):
 
 
 
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
+from time import time
+import logging
 
+logger = logging.getLogger(__name__)
 
 import uuid
 from qdrant_client.models import PointStruct
-from tenacity import retry, stop_after_attempt, wait_exponential
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
+@retry(
+    stop=stop_after_attempt(3), 
+    wait=wait_exponential(multiplier=1, max=16, min=2))
 def _insert_to_vectordb(kb_id, ast_docs):
     ns = str(kb_id)
     print(f"Beginning insertion for namespace: {ns}...")
@@ -274,7 +280,9 @@ def _insert_to_vectordb(kb_id, ast_docs):
         return
 
     print(f"Fetching cloud embeddings for {len(ast_docs)} chunks...")
-    
+
+    start = time()
+    start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # 1. Extract data from LangChain Documents
     texts = [doc.page_content for doc in ast_docs]
     metadatas = [{**doc.metadata, "kb_id": ns} for doc in ast_docs]
@@ -296,17 +304,30 @@ def _insert_to_vectordb(kb_id, ast_docs):
             )
         )
 
+    end = time()
+
+    print(F"Going to start uplodation parsing done {end-start} started at :{start_time}")
+
     print(f"Native upload to Qdrant (wait=False)...")
+
     
+    start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # 4. Fire-and-forget native upload
-    vector_db.client.upload_records(
-        collection_name=vector_db.collection_name,
-        records=points,
-        batch_size=256,
-        wait=False
-    )
-        
-    print("Qdrant Vector Insertion Complete!")
+    
+
+    start = time()
+    batch_size =  500
+    
+    vector_db.client.upload_points(
+            collection_name=vector_db.collection_name,
+            points=points,
+            batch_size=batch_size,
+            wait=False,
+            max_retries=3,
+        )
+
+    end = time()        
+    print(F"Qdrant Vector Insertion Complete! in {end-start} started at :{start_time}")
 
 
 
@@ -319,6 +340,9 @@ def _insert_to_graphdb(kb_id,batch_directories,batch_dir_relations,batch_files,b
     graph = get_graph(force_reconnect=True)
     driver = graph._driver
 
+
+    start = time()
+    start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print("Executing Neo4j transactions...")
     
     with driver.session() as session:
@@ -387,6 +411,13 @@ def _insert_to_graphdb(kb_id,batch_directories,batch_dir_relations,batch_files,b
                         """,
                         {"symbols": batch_symbols, "ns": ns},
                     )
+
+    end = time()
+    print(f"Neo4j insertion + graph construction = {end - start} seconds started at :{start_time}")
+
+
+
+
 
 import logging
 import concurrent

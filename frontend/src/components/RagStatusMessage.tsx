@@ -2,7 +2,7 @@ import { Box, Flex, VStack } from "@chakra-ui/react";
 import { useEffect, useRef } from "react";
 import useSessionStore from "../store/sessionStore.ts";
 import { useQuery } from "@tanstack/react-query";
-import { API_BASE_URL } from "../api/apiInstance.ts";
+import { getKbStatus ,getMockKbStatus} from "../api/rag-api.ts";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Database,
@@ -12,20 +12,20 @@ import {
   CheckCircle,
   FileText,
   Loader2,
-  XCircle,
 } from "lucide-react";
 import useMessage from "../hooks/useMessage.ts";
-
-const getStatusIcon = (status: string) => {
+import { toaster } from "./ui/toaster.tsx";
+const getStatusIcon = (status: string, detail: string) => {
   const s = status?.toLowerCase() || "";
-  if (s.includes("fetching repo")) return <GitBranch size={18} />;
-  if (s.includes("analyzing structure")) return <Network size={18} />;
-  if (s.includes("parsing code chunks")) return <FileCode size={18} />;
-  if (s.includes("uploading to databases")) return <Database size={18} />;
-  if (s.includes("indexing")) return <FileText size={18} />;
-  if (s.includes("ready")) return <CheckCircle size={18} color="green" />;
+  const d = detail?.toLowerCase() || "";
+  if (d.includes("repo") || d.includes("github")) return <GitBranch size={22} />;
+  if (d.includes("analyzing") || d.includes("structure")) return <Network size={22} />;
+  if (d.includes("parsing") || d.includes("code")) return <FileCode size={22} />;
+  if (d.includes("uploading") || d.includes("database")) return <Database size={22} />;
+  if (s.includes("indexing")) return <FileText size={22} />;
+  if (s.includes("ready") || d.includes("query")) return <CheckCircle size={22} color="#10B981" />;
   if (s.includes("failed") || s.includes("error"))
-    return <XCircle size={18} color="red" />;
+    return <XCircle size={22} color="#EF4444" />;
   return (
     <Box
       animation="spin 2s linear infinite"
@@ -36,7 +36,7 @@ const getStatusIcon = (status: string) => {
         },
       }}
     >
-      <Loader2 size={18} />
+      <Loader2 size={22} />
     </Box>
   );
 };
@@ -48,6 +48,7 @@ export const RagStatusMessage = () => {
     setIsWaitingForIndexing,
     pendingMessage,
     setPendingMessage,
+    messages,
   } = useSessionStore();
   const { streamMessage } = useMessage();
   const hasTriggeredReady = useRef(false);
@@ -55,9 +56,7 @@ export const RagStatusMessage = () => {
   const { data, isSuccess, isError, error } = useQuery({
     queryKey: ["status", kb_id],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/rag/status?kb_id=${kb_id}`);
-      if (!res.ok) throw new Error("Failed to fetch status");
-      return res.json();
+      return await getKbStatus(kb_id!);
     },
     enabled: isWaitingForIndexing,
     refetchInterval: isWaitingForIndexing ? 3000 : false,
@@ -78,23 +77,31 @@ export const RagStatusMessage = () => {
           }
         }, 1500);
       } else if (statusLower === "failed" || statusLower === "error") {
-        setTimeout(() => {
-          setIsWaitingForIndexing(false);
-          setPendingMessage(null);
-        }, 3000);
+        setIsWaitingForIndexing(false);
+        setPendingMessage(null);
+        toaster.create({
+          title: "Ingestion Failed",
+          description: data?.detail || "An error occurred during indexing.",
+          type: "error",
+        });
       }
     }
     if (isError) {
-      setTimeout(() => {
-        setIsWaitingForIndexing(false);
-        setPendingMessage(null);
-      }, 3000);
+      setIsWaitingForIndexing(false);
+      setPendingMessage(null);
+      toaster.create({
+        title: "Status Check Failed",
+        description: "Could not retrieve ingestion status.",
+        type: "error",
+      });
     }
   }, [
     isSuccess,
     isError,
     data,
     error,
+    setIsWaitingForIndexing,
+    setPendingMessage,
     // intentionally omitted unstable refs like streamMessage
   ]);
 
@@ -102,6 +109,7 @@ export const RagStatusMessage = () => {
 
   const currentStatus = data?.status || "Initializing";
   const currentDetail = data?.detail || "Setting up ingestion pipeline...";
+  const isProcessing = !["ready", "failed", "error"].includes(currentStatus.toLowerCase());
 
   return (
     <AnimatePresence>
@@ -110,30 +118,35 @@ export const RagStatusMessage = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        style={{ width: "100%" }}
+        style={{ width: "100%", marginTop: messages.length === 0 ? "4rem" : "0.5rem" }}
       >
         <Flex justify="flex-start" w="100%">
           <Box
-            maxW="85%"
-            borderRadius="2xl"
-            borderTopLeftRadius="sm"
-            bg="glass.bg"
-            backdropFilter="blur(24px)"
-            border="1px solid"
-            borderColor="glass.border"
+            w="full"
+            bg="transparent"
             color="fg"
-            p={4}
-            boxShadow="0 4px 20px -5px rgba(0, 0, 0, 0.1)"
+            px={2}
+            py={4}
           >
-            <Flex align="center" gap={3}>
-              <Box color="brand.500">{getStatusIcon(currentStatus)}</Box>
+            <Flex align="center" gap={4}>
+              <Box color={isProcessing ? "brand.solid" : "inherit"}>
+                {getStatusIcon(currentStatus, currentDetail)}
+              </Box>
               <VStack align="flex-start" gap={0}>
-                <Box fontWeight="600" fontSize="sm" textTransform="capitalize">
+                <Box fontWeight="500" fontSize="md" textTransform="capitalize" color={isProcessing ? "brand.emphasized" : "fg"}>
                   {currentStatus}
                 </Box>
-                <Box fontSize="xs" color="fg.muted">
-                  {currentDetail}
-                </Box>
+                <motion.div
+                  animate={isProcessing ? { opacity: [0.5, 1, 0.5] } : { opacity: 1 }}
+                  transition={{ duration: 2, repeat: isProcessing ? Infinity : 0, ease: "easeInOut" }}
+                >
+                  <Box 
+                    fontSize="sm" 
+                    color="fg.muted"
+                  >
+                    {currentDetail}
+                  </Box>
+                </motion.div>
               </VStack>
             </Flex>
           </Box>

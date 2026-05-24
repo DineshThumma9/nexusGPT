@@ -78,7 +78,14 @@ const useSessionStore = create<SessionState>()(
       context: "vanilla",
       kb_id: null,
 
-      setCurrentSessionId: (session) => set({ current_session: session }),
+      setCurrentSessionId: (session) => set({ 
+        current_session: session,
+        isWaitingForIndexing: false,
+        indexingStatus: "",
+        indexingDetail: "",
+        pendingMessage: null,
+        kb_id: null
+      }),
       setMessages: (messages) => set({ messages }),
       addMessage: (message) =>
         set((state) => ({ messages: [...state.messages, message] })),

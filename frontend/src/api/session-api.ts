@@ -34,7 +34,6 @@ export const llmSelection = async (llm_class: string) => {
     .replace("google genai", "google_genai")
     .replace("mistral", "mistralai")
     .replace("hugging face", "huggingface");
-  console.log(`Provider llm_class ${llm_class} mapped to ${backendProvider}`);
   await setupAPI.post(
     `/providers`,
     { provider: backendProvider },
@@ -45,7 +44,6 @@ export const llmSelection = async (llm_class: string) => {
 };
 
 export const modelSelection = async (model: string) => {
-  console.log(`Model selection: ${model}`);
   await setupAPI.post(
     `/models`,
     { model: model },
@@ -55,10 +53,12 @@ export const modelSelection = async (model: string) => {
   );
 };
 
-export const newSession = async () => {
+export const newSession = async (session_id?: string) => {
   const access = useAuthStore.getState().accessToken;
 
-  const res = await sessionAPI.post("/new", null, {
+  const payload = session_id ? { session_id } : null;
+
+  const res = await sessionAPI.post("/new", payload, {
     headers: { Authorization: `Bearer ${access}` },
   });
 

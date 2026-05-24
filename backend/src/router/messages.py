@@ -9,11 +9,13 @@ from loguru import logger
 from src.db.dbs import get_checkpointer, get_db
 from src.db.neo4j import get_graph
 from src.db.qdrant_client import get_user_vector_db
-from src.models.models import KnowledgeBase, Session
+from src.models.enums import SenderRole
+from src.models.models import KnowledgeBase, Session, Message
 from src.models.schema import MessageRequest
 from src.router.auth import get_current_user
 from src.service.set_up_service import build_agent, get_llm_instance
 from src.service.tools import make_tools
+from src.db.redis_client import redis_client
 
 from langchain_core.messages.ai import AIMessageChunk
 
@@ -35,10 +37,14 @@ async def message_stream(
     if str(session.user_id) != str(user.userid):
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    kb_id: UUID | None = session.kb_id  # None = no RAG context attached
-    source_type = "github"
+    kb_id: str | None = session.kb_id  # None = no RAG context attached
+    source_type = None
 
-    # 2. Build tools — if no kb_id, empty list → agent answers from LLM only
+    vector_db = None
+    ns = None
+    graph_obj_instance = None
+
+    # 2. Extract RAG context if kb_id is present
     if kb_id is not None:
         kb = db.query(KnowledgeBase).filter_by(kb_id=kb_id).first()
         if kb:
@@ -61,14 +67,14 @@ async def message_stream(
         vector_db = get_user_vector_db(
             ns, source_type=source_type
         )  # Qdrant filter: payload.kb_id == ns
-        tools = await make_tools(
-            vector_db=vector_db,
-            neo4j_ns=ns,
-            graph_obj=get_graph(),
-            source_type=source_type,
-        )
-    else:
-        tools = []
+        graph_obj_instance = get_graph()
+
+    # Always provide tools! The tools will handle missing context gracefully.
+    tools = await make_tools(
+        vector_db=vector_db,
+        neo4j_ns=ns,
+        graph_obj=graph_obj_instance,
+    )
 
     # 3. LLM from user's configured provider/model
     llm = get_llm_instance(db=db, user=user)
@@ -87,15 +93,33 @@ async def message_stream(
     config = {"configurable": {"thread_id": str(body.session_id)}}
 
     return StreamingResponse(
-        _stream(agent, body.msg, config, request),
+        _stream(agent, body.msg, config, request, str(body.session_id), db),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
 
+async def add_message(db, session_id, sender, content):
+    try:
+        message = Message(
+            session_id=UUID(session_id),
+            sender=sender,
+            content=content
+        )
+        db.add(message)
+        db.commit()
+        await redis_client.delete(f"sessions:{session_id}")
+    except Exception as e:
+        logger.error(f"Failed to save message: {e}")
+        db.rollback()
 
-async def _stream(agent, message: str, config: dict, request: Request):
+
+
+async def _stream(agent, message: str, config: dict, request: Request, session_id: str, db):
+
+
+    await add_message(db, session_id, SenderRole.USER, message)
     yield f"data: {json.dumps({'type': 'start', 'content': ''})}\n\n"
     full = ""
     try:
@@ -108,8 +132,6 @@ async def _stream(agent, message: str, config: dict, request: Request):
                 break
             msg_chunk, _meta = chunk
             if hasattr(msg_chunk, "content") and msg_chunk.content:
-                # LangGraph might yield HumanMessageChunk or ToolMessageChunk too.
-                # Check if it's an AI message, and if its content is a string.
                 if isinstance(msg_chunk, AIMessageChunk) and isinstance(msg_chunk.content, str):
                     token = msg_chunk.content
                     full += token
@@ -118,4 +140,7 @@ async def _stream(agent, message: str, config: dict, request: Request):
         logger.error(f"Stream error: {e}")
         yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
         return
+
+    await add_message(db, session_id, SenderRole.ASSISTANT, full)
+
     yield f"data: {json.dumps({'type': 'done', 'content': full})}\n\n"

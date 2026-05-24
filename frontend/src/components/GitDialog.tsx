@@ -299,18 +299,45 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
       }
 
       useSessionStore.getState().setIsWaitingForIndexing(true);
-      await gitFilesUpload(res_body, current_session, new_kb_id);
-      onConfirm(); // Close dialog after starting upload
+      
+      // Close dialog immediately (Optimistic UI)
+      onConfirm();
+
+      // Fire off request in the background
+      gitFilesUpload(res_body, current_session, new_kb_id)
+        .then((data) => {
+          if (data && data.kb_id) {
+            useSessionStore.getState().setKbId(data.kb_id);
+            if (current_session) {
+              useSessionStore.getState().updateSession(current_session, {
+                kb_id: data.kb_id,
+                source_type: "github",
+              });
+            }
+          }
+        })
+        .catch((error) => {
+          console.error("Git upload error:", error);
+          
+          // Revert global state if it fails
+          useSessionStore.getState().setIsWaitingForIndexing(false);
+          
+          toaster.create({
+            title: "Connection Failed",
+            description: "Something went wrong while connecting to the repository.",
+            type: "error",
+            duration: 5000,
+          });
+        });
     } catch (error) {
-      console.error("Git upload error:", error);
+      console.error("Validation error:", error);
+      setLoading(false);
       toaster.create({
-        title: "Unexpected Error",
-        description: "Something went wrong while connecting.",
+        title: "Invalid Input",
+        description: "Please check your filter inputs.",
         type: "error",
         duration: 3000,
       });
-    } finally {
-      setLoading(false);
     }
   };
 

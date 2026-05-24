@@ -27,11 +27,14 @@ def set_api_provider(
     logger.info(f"API KEY:{req.api_key}")
     print(f"API KEY:{req.api_key}")
 
+
+
     if api_provider not in api_providers:
         raise HTTPException(status_code=404, detail="api provider doesnt exists")
 
     encrypted_key = encrypt(api_key)
 
+    
     existing = (
         db.query(APIKEYS)
         .filter_by(user_id=current_user.userid, provider=api_provider)
@@ -173,3 +176,38 @@ def save_mcp_config(config: Dict = Body(...), current_user=Depends(get_current_u
         logger.error(f"Error writing mcp_config.json: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save MCP config: {str(e)}")
     
+
+
+# class MCPModel(BaseModel):
+#     type:str
+#     server:str
+#     auth_header:Optional[str]=None
+#     gallery:Optional[str]=None
+#     version:Optional[str]=None
+#     api_key:Optional[str]=None
+
+
+
+# def set_mcp(mcp_config:JSON,db=Depends(get_db),user=Depends(get_current_user)):
+    
+    
+#     mcp_config = db.query(UserMCPConfig).filter_by(user_id=user.userid).first()
+    
+#     mcp_dic = json.load(mcp_config)
+
+
+#     build_mcp = defaultdict(dict)
+
+#     for mcp in mcp_dic:
+#         try:
+#             model = MCPModel.model(**mcp)
+
+        
+
+
+#First fetch mcp
+#Paren json in py dic
+#Iterate throug py dic to check each model is valid using predefined schema 
+#If valid add it to the build_mcp and parse api key
+#If not valid continue
+#now set build_mcp refering to user and commit is it better to check dulipate which alredy exist or may be user should just delete all and append all  

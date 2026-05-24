@@ -30,8 +30,8 @@ import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL } from "../api/apiInstance.ts";
 import { motion, AnimatePresence } from "framer-motion";
 
-const MotionBox = motion(Box);
-const MotionFlex = motion(Flex);
+const MotionBox = motion.create(Box);
+const MotionFlex = motion.create(Flex);
 
 const TypingIndicator = () => (
   <Flex gap={2} p={4} align="center" justify="flex-start" minH="24px">
@@ -278,6 +278,27 @@ const SendRequest = () => {
             flex="1"
           />
         </MediaPDF>
+
+        <IconButton
+          aria-label="Test Mock RAG Status"
+          onClick={() => {
+            const mock_kb_id = v4();
+            useSessionStore.getState().setKbId(mock_kb_id);
+            useSessionStore.getState().setIsWaitingForIndexing(true);
+          }}
+          size="sm"
+          bg="transparent"
+          color={{ base: "gray.400", _dark: "gray.600" }}
+          transition="all 0.2s ease"
+          _hover={{
+            bg: "transparent",
+            transform: "scale(1.05)",
+            color: { base: "brand.800", _dark: "brand.500" },
+          }}
+          _active={{ transform: "scale(0.95)" }}
+        >
+          <Database size={16} />
+        </IconButton>
 
         <IconButton
           aria-label={isStreaming ? "Stop streaming" : "Send message"}
