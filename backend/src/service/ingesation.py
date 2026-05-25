@@ -1,16 +1,15 @@
 import asyncio
 import os
+import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
-import uuid
-
-from langsmith import traceable
 
 from dotenv import load_dotenv
 from langchain_community.document_loaders import GithubFileLoader, PyPDFLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langsmith import traceable
 from tree_sitter_language_pack import ProcessConfig, detect_language_from_path, process
 
 from src.db.dbs import get_db
@@ -58,12 +57,7 @@ async def fetch_repo(req: GitRequest) -> List[Document]:
     with tempfile.TemporaryDirectory() as temp_dir:
         # Clone the repository
         try:
-            clone_cmd = [
-                "git",
-                "clone",
-                "--depth",
-                "1"
-            ]
+            clone_cmd = ["git", "clone", "--depth", "1"]
             if req.branch:
                 clone_cmd.extend(["--branch", req.branch])
             clone_cmd.extend([repo_url, temp_dir])
@@ -183,7 +177,7 @@ def build_relation_and_index(enriched_docs: Dict[str, ProjectNode]):
 
         config = ProcessConfig(
             language=lang_name, structure=True, imports=True, chunk_max_size=1000
-                    )
+        )
         try:
             result = process(project_file.content, config)
         except Exception as e:
@@ -258,20 +252,19 @@ def build_relation_and_index(enriched_docs: Dict[str, ProjectNode]):
     )
 
 
-
-
-from tenacity import retry, stop_after_attempt, wait_exponential, before_sleep_log
-from time import time
 import logging
+from time import time
+
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
 import uuid
+
 from qdrant_client.models import PointStruct
 
-@retry(
-    stop=stop_after_attempt(3), 
-    wait=wait_exponential(multiplier=1, max=16, min=2))
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
 def _insert_to_vectordb(kb_id, ast_docs):
     ns = str(kb_id)
     print(f"Beginning insertion for namespace: {ns}...")
@@ -286,7 +279,7 @@ def _insert_to_vectordb(kb_id, ast_docs):
     # 1. Extract data from LangChain Documents
     texts = [doc.page_content for doc in ast_docs]
     metadatas = [{**doc.metadata, "kb_id": ns} for doc in ast_docs]
-    
+
     # 2. Get embeddings in one massive batch (bypassing LangChain's 64-chunk limit)
     # Note: If your Git ingestion uses hybrid search (Sparse + Dense) like your PDF ingestion,
     # generate your sparse vectors here too and format the vector={} dictionary accordingly.
@@ -300,130 +293,142 @@ def _insert_to_vectordb(kb_id, ast_docs):
                 id=str(uuid.uuid4()),
                 vector=dense_vectors[i],
                 # LangChain retrieval tools strictly look for these two keys:
-                payload={"page_content": texts[i], "metadata": metadatas[i]}
+                payload={"page_content": texts[i], "metadata": metadatas[i]},
             )
         )
 
     end = time()
 
-    print(F"Going to start uplodation parsing done {end-start} started at :{start_time}")
+    print(
+        f"Going to start uplodation parsing done {end - start} started at :{start_time}"
+    )
 
     print(f"Native upload to Qdrant (wait=False)...")
 
-    
     start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # 4. Fire-and-forget native upload
-    
 
     start = time()
-    batch_size =  500
-    
+    batch_size = 500
+
     vector_db.client.upload_points(
-            collection_name=vector_db.collection_name,
-            points=points,
-            batch_size=batch_size,
-            wait=False,
-            max_retries=3,
-        )
+        collection_name=vector_db.collection_name,
+        points=points,
+        batch_size=batch_size,
+        wait=False,
+        max_retries=3,
+    )
 
-    end = time()        
-    print(F"Qdrant Vector Insertion Complete! in {end-start} started at :{start_time}")
+    end = time()
+    print(
+        f"Qdrant Vector Insertion Complete! in {end - start} started at :{start_time}"
+    )
 
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
+def _insert_to_graphdb(
+    kb_id,
+    batch_directories,
+    batch_dir_relations,
+    batch_files,
+    batch_file_dir_relations,
+    batch_imports,
+    batch_symbols,
+):
 
-    
-
-@retry(stop=stop_after_attempt(3),wait = wait_exponential(multiplier=1,max=16,min=2))
-def _insert_to_graphdb(kb_id,batch_directories,batch_dir_relations,batch_files,batch_file_dir_relations,batch_imports,batch_symbols):
-    
     ns = str(kb_id)
     graph = get_graph(force_reconnect=True)
     driver = graph._driver
 
-
     start = time()
     start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print("Executing Neo4j transactions...")
-    
+
     with driver.session() as session:
-            with session.begin_transaction() as tx:
-                if batch_directories:
-                    tx.run(
-                        """
+        with session.begin_transaction() as tx:
+            if batch_directories:
+                tx.run(
+                    """
                         UNWIND $data AS row
                         MERGE (d:Directory {id: row.id, ns: $ns})
                         ON CREATE SET d.name = row.name
                         """,
-                        {"data": [{"id": d[0], "name": d[1]} for d in batch_directories], "ns": ns},
-                    )
+                    {
+                        "data": [{"id": d[0], "name": d[1]} for d in batch_directories],
+                        "ns": ns,
+                    },
+                )
 
-                if batch_dir_relations:
-                    tx.run(
-                        """
+            if batch_dir_relations:
+                tx.run(
+                    """
                         UNWIND $data AS row
                         MERGE (parent:Directory {id: row.parent, ns: $ns})
                         MERGE (child:Directory {id: row.child, ns: $ns})
                         MERGE (parent)-[:CONTAINS]->(child)
                         """,
-                        {"data": [{"parent": r[0], "child": r[1]} for r in batch_dir_relations], "ns": ns},
-                    )
+                    {
+                        "data": [
+                            {"parent": r[0], "child": r[1]} for r in batch_dir_relations
+                        ],
+                        "ns": ns,
+                    },
+                )
 
-                if batch_files:
-                    tx.run(
-                        """
+            if batch_files:
+                tx.run(
+                    """
                         UNWIND $files AS f
                         MERGE (file:File {id: f.path, ns: $ns})
                         ON CREATE SET file.name = f.filename
                         """,
-                        {"files": batch_files, "ns": ns},
-                    )
+                    {"files": batch_files, "ns": ns},
+                )
 
-                if batch_file_dir_relations:
-                    tx.run(
-                        """
+            if batch_file_dir_relations:
+                tx.run(
+                    """
                         UNWIND $rels AS r
                         MERGE (d:Directory {id: r.parent, ns: $ns})
                         MERGE (f:File {id: r.child, ns: $ns})
                         MERGE (d)-[:CONTAINS]->(f)
                         """,
-                        {"rels": batch_file_dir_relations, "ns": ns},
-                    )
+                    {"rels": batch_file_dir_relations, "ns": ns},
+                )
 
-                if batch_imports:
-                    tx.run(
-                        """
+            if batch_imports:
+                tx.run(
+                    """
                         UNWIND $imports AS i
                         MERGE (f:File {id: i.path, ns: $ns})
                         MERGE (m:Module {id: i.target, name: i.target, ns: $ns})
                         MERGE (f)-[:IMPORTS]->(m)
                         """,
-                        {"imports": batch_imports, "ns": ns},
-                    )
+                    {"imports": batch_imports, "ns": ns},
+                )
 
-                if batch_symbols:
-                    tx.run(
-                        """
+            if batch_symbols:
+                tx.run(
+                    """
                         UNWIND $symbols AS s
                         MERGE (f:File {id: s.path, ns: $ns})
                         MERGE (sym:Symbol {id: s.node_id, ns: $ns})
                         ON CREATE SET sym.name = s.name, sym.type = s.kind
                         MERGE (f)-[:CONTAINS]->(sym)
                         """,
-                        {"symbols": batch_symbols, "ns": ns},
-                    )
+                    {"symbols": batch_symbols, "ns": ns},
+                )
 
     end = time()
-    print(f"Neo4j insertion + graph construction = {end - start} seconds started at :{start_time}")
+    print(
+        f"Neo4j insertion + graph construction = {end - start} seconds started at :{start_time}"
+    )
 
 
-
-
-
-import logging
 import concurrent
+import logging
 
 logger = logging.getLogger()
-
 
 
 def insert_to_databases(
@@ -437,24 +442,32 @@ def insert_to_databases(
     ast_docs,
 ):
     """
-    Atomically inserts data into Qdrant first, then Neo4j. 
+    Atomically inserts data into Qdrant first, then Neo4j.
     If Neo4j fails, Qdrant insertion is rolled back.
     """
     ns = str(kb_id)
     graph = get_graph(force_reconnect=True)
     driver = graph._driver
 
-
     from concurrent.futures import ThreadPoolExecutor
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        vectordb_task = executor.submit(_insert_to_vectordb,ns,ast_docs)
-        graphdb_task = executor.submit(_insert_to_graphdb,kb_id,batch_directories,batch_dir_relations,batch_files,batch_file_dir_relations,batch_imports,batch_symbols)
+        vectordb_task = executor.submit(_insert_to_vectordb, ns, ast_docs)
+        graphdb_task = executor.submit(
+            _insert_to_graphdb,
+            kb_id,
+            batch_directories,
+            batch_dir_relations,
+            batch_files,
+            batch_file_dir_relations,
+            batch_imports,
+            batch_symbols,
+        )
 
-
-        done,not_done = concurrent.futures.wait([vectordb_task,graphdb_task],return_when=concurrent.futures.FIRST_EXCEPTION)
-
-
+        done, not_done = concurrent.futures.wait(
+            [vectordb_task, graphdb_task],
+            return_when=concurrent.futures.FIRST_EXCEPTION,
+        )
 
         error_to_raise = None
         for future in done:
@@ -467,30 +480,33 @@ def insert_to_databases(
                 # let it finish running and we'll rollback after.
 
     # OUTSIDE the `with ThreadPoolExecutor` block:
-    # At this point, the thread pool has been safely shutdown and both threads 
+    # At this point, the thread pool has been safely shutdown and both threads
     # are guaranteed to have stopped executing. We can now safely run the rollback!
     if error_to_raise:
         if ast_docs:
             print("Rolling back Qdrant insertion...")
             try:
                 from qdrant_client.http import models as rest_models
+
                 vector_db.client.delete(
                     collection_name=vector_db.collection_name,
                     points_selector=rest_models.Filter(
                         must=[
                             rest_models.FieldCondition(
-                            key="metadata.kb_id",
-                            match=rest_models.MatchValue(value=ns),
+                                key="metadata.kb_id",
+                                match=rest_models.MatchValue(value=ns),
                             )
-                    ]
+                        ]
                     ),
                 )
                 print("Qdrant data purged successfully.")
             except Exception as qd_err:
                 print(f"DANGER: Failed to clear Qdrant records: {qd_err}")
-        
+
         # Guarantee the error bubbles up to Celery so it triggers the task failure sequence.
         raise error_to_raise
+
+
 # ====================================================
 # CELERY BACKGROUND TASKS (Redis Broker & Backend)
 # ====================================================

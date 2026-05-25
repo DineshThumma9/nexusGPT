@@ -17,5 +17,8 @@ redis_client = AsyncRedis.from_url(REDIS_URL)
 
 # Celery App
 queue = Celery(
-    "app", broker=REDIS_URL, backend=REDIS_URL, include=["src.service.tasks", "src.router.sessions"]
+    "app",
+    broker=REDIS_URL,
+    backend=REDIS_URL,
+    include=["src.service.tasks", "src.router.sessions"],
 )

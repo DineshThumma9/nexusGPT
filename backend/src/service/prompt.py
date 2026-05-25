@@ -28,7 +28,6 @@ Rules:
 Title:"""
 
 
-
 summarization_prompt = (
     "You are a context-condensation middleware. Your job is to compress the conversation history "
     "without losing any technical details, metrics, project names, or metadata.\n\n"
@@ -38,4 +37,3 @@ summarization_prompt = (
     "3. Retain exact technical terms, architecture details, and bullet points.\n"
     "4. Merge overlapping information but do not lose the raw structure."
 )
-

@@ -84,13 +84,12 @@ class KnowledgeBase(SQLModel, table=True):
     source_sha: Optional[str] = None
 
 
-
-class UserMCPConfig(SQLModel,table=True):
+class UserMCPConfig(SQLModel, table=True):
     __tablename__ = "mcp_config"
-    i
     user_id: UUID = Field(foreign_key="users.userid", primary_key=True)
-    server_url:str 
-    auth_header:Optional[str] = None
-    gallery:Optional[str] = None
-    version:Optional[str] = None
-    api_key:Optional[str] = None
+    server_url: str = Field(primary_key=True)
+    type: str
+    auth_header: Optional[str] = None
+    gallery: Optional[str] = None
+    version: Optional[str] = None
+    api_key: Optional[str] = None

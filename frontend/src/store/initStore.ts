@@ -25,7 +25,10 @@ export type InitState = {
   setEmail: (email: string) => void;
   setCurrentAPIProvider: (provider: string) => void;
   setCurrentAPIKey: (key: string) => void;
-  setFetchedModels: (models: Record<string, string[]> | null, time: number | null) => void;
+  setFetchedModels: (
+    models: Record<string, string[]> | null,
+    time: number | null,
+  ) => void;
   clearInit: () => void;
 };
 

@@ -45,7 +45,11 @@ def ensure_kb(
         if not kb:
             kb = KnowledgeBase(
                 kb_id=kb_id,
-                user_id=db_session.user_id if db_session else uuid.UUID(session_id),  # Fallback to session_id isn't exactly correct but keeps legacy behavior
+                user_id=db_session.user_id
+                if db_session
+                else uuid.UUID(
+                    session_id
+                ),  # Fallback to session_id isn't exactly correct but keeps legacy behavior
                 source_type=source_type,
                 source_ref=source_ref,
                 status=KBStatus.PENDING,
@@ -63,14 +67,19 @@ def ensure_kb(
         )
 
 
-from src.router.auth import get_current_user
-from src.models.models import User
-
 import requests
+
+from src.models.models import User
+from src.router.auth import get_current_user
+
 
 @router.post("/git")
 async def git_rag(
-    req: GitRequest, session_id: str, kb_id: str = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    req: GitRequest,
+    session_id: str,
+    kb_id: str = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Triggers the background ingestion of a Git repository via Celery."""
     # Fetch latest SHA from GitHub
@@ -78,17 +87,24 @@ async def git_rag(
     github_token = os.getenv("GITHUB_TOKEN")
     if github_token:
         headers["Authorization"] = f"token {github_token}"
-        
+
     ref = req.commit or req.branch or "HEAD"
-    resp = requests.get(f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}", headers=headers)
+    resp = requests.get(
+        f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
+        headers=headers,
+    )
     if resp.status_code != 200:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch repo from GitHub: {resp.text}")
-        
+        raise HTTPException(
+            status_code=400, detail=f"Failed to fetch repo from GitHub: {resp.text}"
+        )
+
     # Override the frontend's kb_id with a deterministic UUID based on the SHA
     sha = resp.json()["sha"]
     kb_id = str(uuid.uuid5(uuid.NAMESPACE_OID, sha))
-    
-    logger.info(f"Triggering Git ingestion: session={session_id}, kb_id={kb_id}, sha={sha}")
+
+    logger.info(
+        f"Triggering Git ingestion: session={session_id}, kb_id={kb_id}, sha={sha}"
+    )
 
     logger.info(f"Owner:{req.owner}  Repo:{req.repo} req:{req}")
 
@@ -100,11 +116,16 @@ async def git_rag(
         source_ref=f"{req.owner}/{req.repo}",
     )
 
-    if kb.status in (KBStatus.READY, KBStatus.INDEXING, KBStatus.PENDING) and kb.created_at:
+    if (
+        kb.status in (KBStatus.READY, KBStatus.INDEXING, KBStatus.PENDING)
+        and kb.created_at
+    ):
         # If the KB was created in the past and not FAILED, check if we really need to ingest again.
         # Actually, if it's already READY or currently INDEXING, skip Celery task.
         if kb.status in (KBStatus.READY, KBStatus.INDEXING):
-            logger.info(f"KB {kb_id} (SHA: {sha}) already exists with status {kb.status}. Skipping ingestion.")
+            logger.info(
+                f"KB {kb_id} (SHA: {sha}) already exists with status {kb.status}. Skipping ingestion."
+            )
             return {
                 "status": "indexing" if kb.status == KBStatus.INDEXING else "ready",
                 "kb_id": kb_id,
@@ -132,7 +153,7 @@ async def get_rag(
     session_id: str = Form(...),
     kb_id: str = Form(...),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
     """Saves uploaded files and triggers background PDF ingestion via Celery."""
     logger.info(f"Triggering PDF ingestion: session={session_id}, kb_id={kb_id}")
@@ -184,9 +205,10 @@ async def get_tree(reques: GitSpec):
     return tree
 
 
-
 @router.get("/status")
-async def get_status(kb_id: str, db: Session = Depends(get_db),user:User = Depends(get_current_user)):
+async def get_status(
+    kb_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
     """Retrieves the ingestion status. Checks Redis first, then falls back to Postgres."""
     try:
         if not kb_id:
@@ -204,7 +226,7 @@ async def get_status(kb_id: str, db: Session = Depends(get_db),user:User = Depen
             try:
                 status_data = json.loads(status_val)
                 logger.info(f"Redis status for KB {kb_id}: {status_data['status']}")
-                                
+
                 return {
                     "status": status_data["status"],
                     "detail": status_data.get("detail", ""),
@@ -222,17 +244,33 @@ async def get_status(kb_id: str, db: Session = Depends(get_db),user:User = Depen
                 kb.status.value if hasattr(kb.status, "value") else str(kb.status)
             )
             logger.info(f"Postgres status for KB {kb_id}: {status_str}")
-            
+
             if status_str.upper() == "INDEXING":
-                return {"status": "processing", "detail": "Initializing worker...", "kb_id": kb_id}
+                return {
+                    "status": "processing",
+                    "detail": "Initializing worker...",
+                    "kb_id": kb_id,
+                }
             elif status_str.upper() == "READY":
-                return {"status": "ready", "detail": "Ingestion complete", "kb_id": kb_id}
+                return {
+                    "status": "ready",
+                    "detail": "Ingestion complete",
+                    "kb_id": kb_id,
+                }
             elif status_str.upper() == "FAILED":
                 return {"status": "failed", "detail": "Task failed", "kb_id": kb_id}
             else:
-                return {"status": status_str.lower(), "detail": status_str, "kb_id": kb_id}
+                return {
+                    "status": status_str.lower(),
+                    "detail": status_str,
+                    "kb_id": kb_id,
+                }
 
-        return {"status": "missing", "detail": "Knowledge base not found", "kb_id": kb_id}
+        return {
+            "status": "missing",
+            "detail": "Knowledge base not found",
+            "kb_id": kb_id,
+        }
     except Exception as e:
         logger.error(f"Error getting status for KB {kb_id}: {e}")
         return {"status": "error", "detail": str(e), "kb_id": kb_id}
@@ -240,35 +278,44 @@ async def get_status(kb_id: str, db: Session = Depends(get_db),user:User = Depen
 
 mock_status_counters = {}
 
+
 @router.get("/mock/status")
 async def get_mock_status(kb_id: str, db: Session = Depends(get_db)):
     """Retrieves a mock sequence of ingestion statuses."""
     global mock_status_counters
-    
+
     if kb_id not in mock_status_counters:
         mock_status_counters[kb_id] = 0
-        
+
     count = mock_status_counters[kb_id]
     mock_status_counters[kb_id] += 1
-    
+
     if count == 0:
-        return {"kb_id": kb_id, "status": "processing", "detail": "Indexing has been Initialized"}
+        return {
+            "kb_id": kb_id,
+            "status": "processing",
+            "detail": "Indexing has been Initialized",
+        }
     elif count == 1:
-        return {"kb_id": kb_id, "status": "processing", "detail": "Fetching Github Repository"}
+        return {
+            "kb_id": kb_id,
+            "status": "processing",
+            "detail": "Fetching Github Repository",
+        }
     elif count == 2:
         return {"kb_id": kb_id, "status": "processing", "detail": "Analyzing Structure"}
     elif count == 3:
         return {"kb_id": kb_id, "status": "processing", "detail": "Parsing Code"}
     elif count == 4:
-        return {"kb_id": kb_id, "status": "processing", "detail": "Uploading to Databases"}
+        return {
+            "kb_id": kb_id,
+            "status": "processing",
+            "detail": "Uploading to Databases",
+        }
     else:
         import random
+
         fail = random.randint(0, 1) <= 0.2
         if fail:
             return {"kb_id": kb_id, "status": "failed", "detail": "Indexing Failed"}
         return {"kb_id": kb_id, "status": "ready", "detail": "Query Now"}
-
-
-
-    
-

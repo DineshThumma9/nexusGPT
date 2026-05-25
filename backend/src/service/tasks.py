@@ -4,10 +4,18 @@ import os
 from typing import List
 from uuid import UUID
 
-from langchain_community.document_loaders import PyPDFLoader
+from celery.signals import worker_process_init
+from langchain_community.document_loaders import (
+    DirectoryLoader,
+    PyPDFLoader,
+    TextLoader,
+    UnstructuredPowerPointLoader,
+    UnstructuredWordDocumentLoader,
+)
 from langchain_qdrant import QdrantVectorStore, RetrievalMode
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from src.db import dbs
 from src.db.dbs import get_db
 from src.db.qdrant_client import (
     COLLECTION,
@@ -26,20 +34,14 @@ from src.service.ingesation import (
 )
 
 
-from langchain_community.document_loaders import DirectoryLoader
-from langchain_community.document_loaders import TextLoader, UnstructuredWordDocumentLoader, UnstructuredPowerPointLoader, PyPDFLoader
-
-
-
-from src.db import dbs
-from celery.signals import worker_process_init
-
 @worker_process_init.connect
 def celery_worker_init(*args, **kwargs):
     """Ensure database connections are clean when celery workers fork."""
     from src.db.dbs import engine
+
     if engine is not None:
         engine.dispose()
+
 
 def update_kb(kb_id, status):
     # Update Postgres status
@@ -58,35 +60,37 @@ def update_kb(kb_id, status):
         db.close()
 
 
-
 import logging
 from datetime import datetime
-from src.db.dbs import SessionLocal
-from src.models.models import Session as SessionModel
+
 from sqlmodel import select
 
+from src.db.dbs import SessionLocal
+from src.models.models import Session as SessionModel
 
 logger = logging.getLogger()
 
 
 @queue.task(time_limit=60)
-def update_session(session_id: str, title: str, user_id: str):  # FIXED: Changed from 'async def' to standard 'def'
-    
+def update_session(
+    session_id: str, title: str, user_id: str
+):  # FIXED: Changed from 'async def' to standard 'def'
 
-    dbs._init_db()  
+    dbs._init_db()
     db = dbs.SessionLocal()
     try:
-
         session_uuid = UUID(session_id)
-        session_query = select(SessionModel).where(SessionModel.session_id == session_uuid)
+        session_query = select(SessionModel).where(
+            SessionModel.session_id == session_uuid
+        )
         session = db.execute(session_query).scalars().first()
-        
+
         if session and session.title == "New Chat":
             session.title = title
             session.updated_at = datetime.utcnow()
             db.add(session)
             db.commit()
-            
+
             logger.info(f"Updated title for session {session.session_id}: {title}")
             redis.delete(f"user:{user_id}:sessions")
         else:
@@ -99,19 +103,27 @@ def update_session(session_id: str, title: str, user_id: str):  # FIXED: Changed
     # FIXED: Removed the duplicate, unprotected logger.info from down here
 
 
-
-
 @queue.task(time_limit=3600)
-def ingest_git_repo_task(req_dict: dict, kb_id: str, session_id: str = None, user_id: str = None):
+def ingest_git_repo_task(
+    req_dict: dict, kb_id: str, session_id: str = None, user_id: str = None
+):
     """Celery background task to fully ingest a Github repository."""
-    redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Indexing initialized..."}), ex=86400)
+    redis.set(
+        f"kb:{kb_id}:status",
+        json.dumps({"status": "processing", "detail": "Indexing initialized..."}),
+        ex=86400,
+    )
     update_kb(kb_id=kb_id, status=KBStatus.INDEXING)
 
     try:
         req = GitRequest(**req_dict)
 
         # 1. FETCHING
-        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Fetching repo..."}), ex=86400)
+        redis.set(
+            f"kb:{kb_id}:status",
+            json.dumps({"status": "processing", "detail": "Fetching repo..."}),
+            ex=86400,
+        )
 
         # Run async Github fetch synchronously inside Celery worker
         try:
@@ -134,11 +146,19 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str, session_id: str = None, use
             )
 
         # 2. BUILDING HIERARCHY
-        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Analyzing structure..."}), ex=86400)
+        redis.set(
+            f"kb:{kb_id}:status",
+            json.dumps({"status": "processing", "detail": "Analyzing structure..."}),
+            ex=86400,
+        )
         enriched_docs = build_hierarchy(documents)
 
         # 3. SPLITTING AND PARSING AST
-        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Parsing code chunks..."}), ex=86400)
+        redis.set(
+            f"kb:{kb_id}:status",
+            json.dumps({"status": "processing", "detail": "Parsing code chunks..."}),
+            ex=86400,
+        )
         (
             batch_files,
             batch_file_dir_relations,
@@ -150,7 +170,11 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str, session_id: str = None, use
         ) = build_relation_and_index(enriched_docs)
 
         # 4. INDEXING TO DATABASES (Neo4j & Qdrant)
-        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Uploading to databases..."}), ex=86400)
+        redis.set(
+            f"kb:{kb_id}:status",
+            json.dumps({"status": "processing", "detail": "Uploading to databases..."}),
+            ex=86400,
+        )
         insert_to_databases(
             kb_id=kb_id,
             batch_directories=batch_directories,
@@ -163,11 +187,16 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str, session_id: str = None, use
         )
 
         # 5. READY
-        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "ready", "detail": "Ingestion complete"}), ex=86400)
+        redis.set(
+            f"kb:{kb_id}:status",
+            json.dumps({"status": "ready", "detail": "Ingestion complete"}),
+            ex=86400,
+        )
         update_kb(kb_id=kb_id, status=KBStatus.READY)
 
-
-        update_session.delay(session_id=session_id, title=f"{req.owner}/{req.repo} Repo", user_id=user_id)
+        update_session.delay(
+            session_id=session_id, title=f"{req.owner}/{req.repo} Repo", user_id=user_id
+        )
 
         print(f"Ingestion pipeline completed successfully for Git KB: {kb_id}")
 
@@ -176,7 +205,11 @@ def ingest_git_repo_task(req_dict: dict, kb_id: str, session_id: str = None, use
 
         traceback.print_exc()
 
-        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "failed", "detail": str(e)}), ex=86400)
+        redis.set(
+            f"kb:{kb_id}:status",
+            json.dumps({"status": "failed", "detail": str(e)}),
+            ex=86400,
+        )
 
         update_kb(kb_id, KBStatus.FAILED)
 
@@ -190,27 +223,34 @@ map_loaders = {
     ".doc": UnstructuredWordDocumentLoader,
     ".pptx": UnstructuredPowerPointLoader,
     ".ppt": UnstructuredPowerPointLoader,
-    ".pdf": PyPDFLoader
+    ".pdf": PyPDFLoader,
 }
 
+
 @queue.task(time_limit=120)
-def ingest_pdf_task(file_paths: List[str], kb_id: str, session_id: str = None, user_id: str = None):
+def ingest_pdf_task(
+    file_paths: List[str], kb_id: str, session_id: str = None, user_id: str = None
+):
     """Celery background task to fully ingest uploaded PDF files."""
     ns = str(kb_id)
-    redis.set(f"kb:{kb_id}:status", json.dumps({"status": "processing", "detail": "Indexing initialized..."}), ex=86400)
+    redis.set(
+        f"kb:{kb_id}:status",
+        json.dumps({"status": "processing", "detail": "Indexing initialized..."}),
+        ex=86400,
+    )
     update_kb(kb_id=kb_id, status=KBStatus.INDEXING)
 
     try:
         all_nodes = []
         for file_path in file_paths:
             print(f"Ingesting PDF file path: {file_path}")
-            
+
             file_ext = os.path.splitext(file_path)[1].lower()
             LoaderClass = map_loaders.get(file_ext)
             if not LoaderClass:
                 print(f"Skipping unsupported file extension: {file_ext}")
                 continue
-            
+
             loader = LoaderClass(file_path)
 
             splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=24)
@@ -236,20 +276,25 @@ def ingest_pdf_task(file_paths: List[str], kb_id: str, session_id: str = None, u
             )
             store.add_documents(all_nodes)
 
-        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "ready", "detail": "Ingestion complete"}), ex=86400)
+        redis.set(
+            f"kb:{kb_id}:status",
+            json.dumps({"status": "ready", "detail": "Ingestion complete"}),
+            ex=86400,
+        )
         update_kb(kb_id=kb_id, status=KBStatus.READY)
 
         first_file = os.path.basename(file_paths[0]) if file_paths else "PDF Upload"
         update_session.delay(session_id=session_id, title=first_file, user_id=user_id)
-           
 
     except Exception as e:
         import traceback
 
         traceback.print_exc()
 
-        redis.set(f"kb:{kb_id}:status", json.dumps({"status": "failed", "detail": str(e)}), ex=86400)
+        redis.set(
+            f"kb:{kb_id}:status",
+            json.dumps({"status": "failed", "detail": str(e)}),
+            ex=86400,
+        )
         update_kb(kb_id=kb_id, status=KBStatus.FAILED)
         raise e
-
-

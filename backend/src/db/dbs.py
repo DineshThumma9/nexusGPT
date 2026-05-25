@@ -99,6 +99,7 @@ async def init_checkpointer():
             "keepalives_interval": 10,
             "keepalives_count": 5,
         },
+        check=AsyncConnectionPool.check_connection,
         open=False,
     )
     await _pool.open()

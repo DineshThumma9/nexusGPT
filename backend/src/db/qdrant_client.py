@@ -2,7 +2,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from langchain_community.embeddings import FastEmbedEmbeddings
+from langchain_community.embeddings import FastEmbedEmbeddings, JinaEmbeddings
 from langchain_nomic import NomicEmbeddings
 from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
 from langchain_voyageai import VoyageAIEmbeddings
@@ -15,9 +15,6 @@ from qdrant_client.models import (
     PayloadSchemaType,
     VectorParams,
 )
-
-from langchain_community.embeddings import JinaEmbeddings
-
 
 load_dotenv()
 

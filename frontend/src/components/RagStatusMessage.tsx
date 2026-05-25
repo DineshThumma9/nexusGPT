@@ -2,7 +2,7 @@ import { Box, Flex, VStack } from "@chakra-ui/react";
 import { useEffect, useRef } from "react";
 import useSessionStore from "../store/sessionStore.ts";
 import { useQuery } from "@tanstack/react-query";
-import { getKbStatus ,getMockKbStatus} from "../api/rag-api.ts";
+import { getKbStatus, getMockKbStatus } from "../api/rag-api.ts";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Database,
@@ -18,12 +18,17 @@ import { toaster } from "./ui/toaster.tsx";
 const getStatusIcon = (status: string, detail: string) => {
   const s = status?.toLowerCase() || "";
   const d = detail?.toLowerCase() || "";
-  if (d.includes("repo") || d.includes("github")) return <GitBranch size={22} />;
-  if (d.includes("analyzing") || d.includes("structure")) return <Network size={22} />;
-  if (d.includes("parsing") || d.includes("code")) return <FileCode size={22} />;
-  if (d.includes("uploading") || d.includes("database")) return <Database size={22} />;
+  if (d.includes("repo") || d.includes("github"))
+    return <GitBranch size={22} />;
+  if (d.includes("analyzing") || d.includes("structure"))
+    return <Network size={22} />;
+  if (d.includes("parsing") || d.includes("code"))
+    return <FileCode size={22} />;
+  if (d.includes("uploading") || d.includes("database"))
+    return <Database size={22} />;
   if (s.includes("indexing")) return <FileText size={22} />;
-  if (s.includes("ready") || d.includes("query")) return <CheckCircle size={22} color="#10B981" />;
+  if (s.includes("ready") || d.includes("query"))
+    return <CheckCircle size={22} color="#10B981" />;
   if (s.includes("failed") || s.includes("error"))
     return <XCircle size={22} color="#EF4444" />;
   return (
@@ -109,7 +114,9 @@ export const RagStatusMessage = () => {
 
   const currentStatus = data?.status || "Initializing";
   const currentDetail = data?.detail || "Setting up ingestion pipeline...";
-  const isProcessing = !["ready", "failed", "error"].includes(currentStatus.toLowerCase());
+  const isProcessing = !["ready", "failed", "error"].includes(
+    currentStatus.toLowerCase(),
+  );
 
   return (
     <AnimatePresence>
@@ -118,32 +125,37 @@ export const RagStatusMessage = () => {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        style={{ width: "100%", marginTop: messages.length === 0 ? "4rem" : "0.5rem" }}
+        style={{
+          width: "100%",
+          marginTop: messages.length === 0 ? "4rem" : "0.5rem",
+        }}
       >
         <Flex justify="flex-start" w="100%">
-          <Box
-            w="full"
-            bg="transparent"
-            color="fg"
-            px={2}
-            py={4}
-          >
+          <Box w="full" bg="transparent" color="fg" px={2} py={4}>
             <Flex align="center" gap={4}>
               <Box color={isProcessing ? "brand.solid" : "inherit"}>
                 {getStatusIcon(currentStatus, currentDetail)}
               </Box>
               <VStack align="flex-start" gap={0}>
-                <Box fontWeight="500" fontSize="md" textTransform="capitalize" color={isProcessing ? "brand.emphasized" : "fg"}>
+                <Box
+                  fontWeight="500"
+                  fontSize="md"
+                  textTransform="capitalize"
+                  color={isProcessing ? "brand.emphasized" : "fg"}
+                >
                   {currentStatus}
                 </Box>
                 <motion.div
-                  animate={isProcessing ? { opacity: [0.5, 1, 0.5] } : { opacity: 1 }}
-                  transition={{ duration: 2, repeat: isProcessing ? Infinity : 0, ease: "easeInOut" }}
+                  animate={
+                    isProcessing ? { opacity: [0.5, 1, 0.5] } : { opacity: 1 }
+                  }
+                  transition={{
+                    duration: 2,
+                    repeat: isProcessing ? Infinity : 0,
+                    ease: "easeInOut",
+                  }}
                 >
-                  <Box 
-                    fontSize="sm" 
-                    color="fg.muted"
-                  >
+                  <Box fontSize="sm" color="fg.muted">
                     {currentDetail}
                   </Box>
                 </motion.div>

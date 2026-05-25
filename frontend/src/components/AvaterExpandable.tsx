@@ -263,9 +263,7 @@ const AvaterExpandable = () => {
         )}
 
         {mcpDialogOpen && (
-          <McpConfigDialog
-            onClose={() => setMcpDialogOpen(false)}
-          />
+          <McpConfigDialog onClose={() => setMcpDialogOpen(false)} />
         )}
       </VStack>
     </HStack>

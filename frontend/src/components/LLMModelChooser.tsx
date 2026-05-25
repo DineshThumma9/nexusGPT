@@ -40,7 +40,8 @@ const flattenArray = (val: any): string[] => {
 
 const normalizeProviderKey = (key: string): string => {
   const k = key.toLowerCase().trim();
-  if (k === "gemini" || k === "google_genai" || k === "google genai") return "google genai";
+  if (k === "gemini" || k === "google_genai" || k === "google genai")
+    return "google genai";
   if (k === "mistralai" || k === "mistral") return "mistral";
   if (k === "huggingface" || k === "hugging face") return "hugging face";
   return k;

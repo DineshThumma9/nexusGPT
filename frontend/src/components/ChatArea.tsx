@@ -13,7 +13,6 @@ const ChatArea = () => {
       // Message updates handled by Response component
     });
 
-
     return unsubscribe;
   }, []);
 

@@ -299,7 +299,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
       }
 
       useSessionStore.getState().setIsWaitingForIndexing(true);
-      
+
       // Close dialog immediately (Optimistic UI)
       onConfirm();
 
@@ -318,13 +318,14 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
         })
         .catch((error) => {
           console.error("Git upload error:", error);
-          
+
           // Revert global state if it fails
           useSessionStore.getState().setIsWaitingForIndexing(false);
-          
+
           toaster.create({
             title: "Connection Failed",
-            description: "Something went wrong while connecting to the repository.",
+            description:
+              "Something went wrong while connecting to the repository.",
             type: "error",
             duration: 5000,
           });
@@ -492,11 +493,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
 
                     {/* Private GitHub Token */}
                     <Field.Root>
-                      <Field.Label
-                        color="fg"
-                        fontSize="sm"
-                        fontWeight="medium"
-                      >
+                      <Field.Label color="fg" fontSize="sm" fontWeight="medium">
                         Private GitHub Token (optional)
                       </Field.Label>
                       <Input

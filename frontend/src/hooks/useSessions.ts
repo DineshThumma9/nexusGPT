@@ -43,7 +43,7 @@ const useSessions = () => {
     try {
       // Instant optimistic UI updates
       const newSessionId = uuidv4();
-      
+
       const optimisticSession = {
         session_id: newSessionId,
         title: "New Chat",

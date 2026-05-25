@@ -118,3 +118,12 @@ class ProjectNode(BaseModel):
     filename: str
     parent_dir: str
     dirs: List[str]
+
+
+class MCPModel(BaseModel):
+    type: str
+    server_url: str
+    auth_header: Optional[str] = None
+    gallery: Optional[str] = None
+    version: Optional[str] = None
+    api_key: Optional[str] = None

@@ -1,15 +1,20 @@
 import datetime
 import json  # Moved to the top to avoid hidden scope bugs
 import uuid
+from typing import Optional
 from uuid import UUID
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
+from pydantic import BaseModel
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
-from src.db.dbs import get_db, SessionLocal  # Extracted from lower import for cleanliness
+from src.db.dbs import (
+    SessionLocal,
+    get_db,
+)  # Extracted from lower import for cleanliness
 from src.db.redis_client import redis, redis_client
 from src.models.models import Message, User
 from src.models.models import Session as SessionModel
@@ -18,13 +23,14 @@ from src.models.schema import (
     TitleResponse,
     TitleUpdateRequest,
 )
-from pydantic import BaseModel
-from typing import Optional
+
 
 class CreateSessionRequest(BaseModel):
     session_id: Optional[str] = None
-from src.router.auth import get_current_user
+
+
 from src.db.redis_client import queue
+from src.router.auth import get_current_user
 
 logger.add("logs/api.log", rotation="1 MB", retention="10 days", level="INFO")
 logger.info("Server started")
@@ -36,12 +42,16 @@ load_dotenv()
 # ROUTES
 # -------------------------------------------------------------------------
 
+
 @router.post("/new", response_model=SessionResponse)
 async def create_new_session(
     request: CreateSessionRequest | None = None,
-    user: User = Depends(get_current_user), db: DBSession = Depends(get_db)
+    user: User = Depends(get_current_user),
+    db: DBSession = Depends(get_db),
 ):
-    session_id = request.session_id if request and request.session_id else str(uuid.uuid4())
+    session_id = (
+        request.session_id if request and request.session_id else str(uuid.uuid4())
+    )
     write_new_session.delay(session_id, str(user.userid))
     return SessionResponse(session_id=session_id)
 
@@ -53,7 +63,7 @@ async def get_chat_history(session_id: str, db: DBSession = Depends(get_db)):
     sessions_history = await redis_client.get(cached_key)
     if sessions_history:
         return json.loads(sessions_history)
-        
+
     messages = (
         db.query(Message)
         .filter(Message.session_id == session_id)
@@ -63,7 +73,9 @@ async def get_chat_history(session_id: str, db: DBSession = Depends(get_db)):
     messages = [
         {
             "id": str(msg.message_id),
-            "sender": msg.sender.value if hasattr(msg.sender, "value") else str(msg.sender),
+            "sender": msg.sender.value
+            if hasattr(msg.sender, "value")
+            else str(msg.sender),
             "content": msg.content,
             "timestamp": msg.timestamp.isoformat(),
         }
@@ -140,7 +152,9 @@ async def get_all_sessions(
                 kb = db.query(KnowledgeBase).filter_by(kb_id=session.kb_id).first()
                 if kb:
                     source_type = (
-                        kb.source_type.value if hasattr(kb.source_type, "value") else str(kb.source_type)
+                        kb.source_type.value
+                        if hasattr(kb.source_type, "value")
+                        else str(kb.source_type)
                     )
 
             session_list.append(
@@ -151,11 +165,15 @@ async def get_all_sessions(
                     "kb_id": kb_id_str,
                     "source_type": source_type,
                     "created_at": session.created_at.isoformat(),
-                    "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+                    "updated_at": session.updated_at.isoformat()
+                    if session.updated_at
+                    else None,
                 }
             )
 
-        await redis_client.set(f"user:{user.userid}:sessions", json.dumps(session_list), ex=3600)
+        await redis_client.set(
+            f"user:{user.userid}:sessions", json.dumps(session_list), ex=3600
+        )
         return session_list
 
     except Exception as e:
@@ -195,21 +213,25 @@ def write_new_session(session_id: str, user_id: str):
 
 
 @queue.task(time_limit=60)
-def write_session(session_id: str, title: str, user_id: str):  # FIXED: Changed from 'async def' to standard 'def'
-    
+def write_session(
+    session_id: str, title: str, user_id: str
+):  # FIXED: Changed from 'async def' to standard 'def'
+
     dbs._init_db()
     db = dbs.SessionLocal()
     try:
         session_uuid = UUID(session_id)
-        session_query = select(SessionModel).where(SessionModel.session_id == session_uuid)
+        session_query = select(SessionModel).where(
+            SessionModel.session_id == session_uuid
+        )
         session = db.execute(session_query).scalars().first()
-        
+
         if session:
             session.title = title
             session.updated_at = datetime.datetime.utcnow()
             db.add(session)
             db.commit()
-            
+
             logger.info(f"Updated title for session {session.session_id}: {title}")
             redis.delete(f"user:{user_id}:sessions")
         else:
@@ -226,7 +248,7 @@ def write_session(session_id: str, title: str, user_id: str):  # FIXED: Changed 
 def delete_session_background(session_id: str, user_id: str):
 
     dbs._init_db()
-    
+
     db = dbs.SessionLocal()
     sid = UUID(session_id)
     try:
@@ -241,7 +263,7 @@ def delete_session_background(session_id: str, user_id: str):
         session_row = db.execute(session_stmt).scalars().first()
         if session_row:
             db.delete(session_row)
-            
+
         db.commit()
 
         # 3. Redis cleanup

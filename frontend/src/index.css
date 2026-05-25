@@ -29,7 +29,11 @@ body::after {
 body::before {
   width: 700px;
   height: 700px;
-  background: radial-gradient(circle, var(--chakra-colors-brand-600) 0%, transparent 60%);
+  background: radial-gradient(
+    circle,
+    var(--chakra-colors-brand-600) 0%,
+    transparent 60%
+  );
   top: -250px;
   left: -200px;
 }
@@ -37,7 +41,11 @@ body::before {
 body::after {
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, var(--chakra-colors-brand-400) 0%, transparent 60%);
+  background: radial-gradient(
+    circle,
+    var(--chakra-colors-brand-400) 0%,
+    transparent 60%
+  );
   bottom: -150px;
   right: -150px;
 }

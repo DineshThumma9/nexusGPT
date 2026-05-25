@@ -10,7 +10,10 @@ export const getApiConfigs = async (): Promise<ApiConfig[]> => {
   return response.data;
 };
 
-export const setApiProvider = async (provider: string, apiKey: string): Promise<any> => {
+export const setApiProvider = async (
+  provider: string,
+  apiKey: string,
+): Promise<any> => {
   const response = await setupAPI.post("/init", {
     api_prov: provider,
     api_key: apiKey,

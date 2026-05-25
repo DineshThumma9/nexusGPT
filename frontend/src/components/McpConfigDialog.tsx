@@ -18,7 +18,14 @@ import {
 import { useState, useEffect } from "react";
 import { getMcpConfig, saveMcpConfig } from "../api/setup-api";
 import { toaster } from "./ui/toaster";
-import { FiSave, FiX, FiCheck, FiAlertTriangle, FiCode, FiEye } from "react-icons/fi";
+import {
+  FiSave,
+  FiX,
+  FiCheck,
+  FiAlertTriangle,
+  FiCode,
+  FiEye,
+} from "react-icons/fi";
 import type { HighlighterGeneric } from "shiki";
 
 interface Props {
@@ -61,7 +68,8 @@ const textareaStyles = {
   borderColor: "var(--chakra-colors-border-default)",
   backgroundColor: "rgba(0, 0, 0, 0.2)",
   color: "var(--chakra-colors-fg)",
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+  fontFamily:
+    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
   fontSize: "14px",
   lineHeight: "1.5",
   outline: "none",
@@ -74,7 +82,7 @@ export const McpConfigDialog = ({ onClose }: Props) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
-  
+
   // Validation states
   const [isValid, setIsValid] = useState(true);
   const [validationError, setValidationError] = useState("");
@@ -96,7 +104,7 @@ export const McpConfigDialog = ({ onClose }: Props) => {
         type: "error",
       });
       // Fallback to empty default structure
-      setRawJson(JSON.stringify({ mcpServers: {} }, null, 2));
+      setRawJson(JSON.stringify([], null, 2));
     } finally {
       setLoading(false);
     }
@@ -144,51 +152,51 @@ export const McpConfigDialog = ({ onClose }: Props) => {
   };
 
   const handleAddTemplate = (templateName: string) => {
-    let currentObj: any = { mcpServers: {} };
+    let currentArr: any[] = [];
     try {
       if (rawJson.trim()) {
         const parsed = JSON.parse(rawJson);
-        if (typeof parsed === "object" && parsed !== null) {
-          currentObj = parsed;
+        if (Array.isArray(parsed)) {
+          currentArr = parsed;
+        } else if (typeof parsed === "object" && parsed !== null) {
+          // Fallback if they had old object structure
+          currentArr = [];
         }
       }
     } catch (e) {
       // Ignore parse failure, we start with empty structure
     }
 
-    if (!currentObj.mcpServers || typeof currentObj.mcpServers !== "object") {
-      currentObj.mcpServers = {};
-    }
-
     const templates: Record<string, any> = {
-      sqlite: {
-        command: "uvx",
-        args: ["mcp-server-sqlite", "--db-path", "./db.sqlite"]
+      "remote-search": {
+        type: "sse",
+        server_url: "https://mcp.brave.com/sse",
+        auth_header: "Authorization",
+        api_key: "Bearer YOUR_API_KEY",
+        version: "1.0",
+        gallery: "",
       },
-      puppeteer: {
-        command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-puppeteer"]
+      "remote-postgres": {
+        type: "sse",
+        server_url: "https://mcp-sql.yourdomain.com/sse",
+        auth_header: "X-Api-Key",
+        api_key: "YOUR_API_KEY",
+        version: "1.0",
+        gallery: "",
       },
-      "brave-search": {
-        command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-brave-search"],
-        env: {
-          BRAVE_API_KEY: "YOUR_API_KEY_HERE"
-        }
+      "custom-http": {
+        type: "sse",
+        server_url: "https://api.example.com/mcp",
+        auth_header: "Authorization",
+        api_key: "",
+        version: "1.0",
+        gallery: "",
       },
-      postgres: {
-        command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
-      },
-      filesystem: {
-        command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"]
-      }
     };
 
-    currentObj.mcpServers[templateName] = templates[templateName];
-    setRawJson(JSON.stringify(currentObj, null, 2));
-    
+    currentArr.push(templates[templateName]);
+    setRawJson(JSON.stringify(currentArr, null, 2));
+
     toaster.create({
       title: "Template Added",
       description: `Added ${templateName} server config template.`,
@@ -206,26 +214,34 @@ export const McpConfigDialog = ({ onClose }: Props) => {
       return;
     }
 
-    setSaving(true);
-    try {
-      const parsedConfig = rawJson.trim() ? JSON.parse(rawJson) : { mcpServers: {} };
-      await saveMcpConfig(parsedConfig);
-      toaster.create({
-        title: "Configuration Saved",
-        description: "MCP Server configuration updated successfully.",
-        type: "success",
-      });
-      onClose();
-    } catch (error: any) {
+    // Optimistic UI: immediately close and show success
+    const parsedConfig = rawJson.trim() ? JSON.parse(rawJson) : [];
+    onClose();
+    toaster.create({
+      title: "Configuration Saved",
+      description: "MCP Server configuration updated successfully.",
+      type: "success",
+    });
+
+    // Fire API request in the background
+    saveMcpConfig(parsedConfig).catch((error: any) => {
       console.error("Failed to save MCP config:", error);
+      let errorMsg = "Could not write configuration to disk.";
+      if (error.response?.data?.detail) {
+        if (Array.isArray(error.response.data.detail)) {
+          errorMsg = error.response.data.detail
+            .map((e: any) => `${e.loc?.join(".") || "Field"}: ${e.msg}`)
+            .join(", ");
+        } else {
+          errorMsg = String(error.response.data.detail);
+        }
+      }
       toaster.create({
         title: "Save Failed",
-        description: error.response?.data?.detail || "Could not write configuration to disk.",
+        description: errorMsg,
         type: "error",
       });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
@@ -272,20 +288,29 @@ export const McpConfigDialog = ({ onClose }: Props) => {
                 </IconButton>
               </HStack>
               <Text fontSize="xs" color="fg.muted" mt={1}>
-                Configure external Model Context Protocol servers loaded by the backend assistant.
+                Configure external Model Context Protocol servers loaded by the
+                backend assistant.
               </Text>
             </Dialog.Header>
 
             <Dialog.Body {...dialogBody}>
               <VStack gap={4} align="stretch">
                 {/* Custom Tab Switcher */}
-                <HStack gap={2} bg="bg.muted" p={1} borderRadius="xl" alignSelf="flex-start">
+                <HStack
+                  gap={2}
+                  bg="bg.muted"
+                  p={1}
+                  borderRadius="xl"
+                  alignSelf="flex-start"
+                >
                   <Button
                     size="sm"
                     variant={activeTab === "edit" ? "solid" : "ghost"}
                     bg={activeTab === "edit" ? "brand.600" : "transparent"}
                     color={activeTab === "edit" ? "white" : "fg.muted"}
-                    _hover={{ bg: activeTab === "edit" ? "brand.700" : "bg.subtle" }}
+                    _hover={{
+                      bg: activeTab === "edit" ? "brand.700" : "bg.subtle",
+                    }}
                     onClick={() => setActiveTab("edit")}
                     borderRadius="lg"
                   >
@@ -296,7 +321,9 @@ export const McpConfigDialog = ({ onClose }: Props) => {
                     variant={activeTab === "preview" ? "solid" : "ghost"}
                     bg={activeTab === "preview" ? "brand.600" : "transparent"}
                     color={activeTab === "preview" ? "white" : "fg.muted"}
-                    _hover={{ bg: activeTab === "preview" ? "brand.700" : "bg.subtle" }}
+                    _hover={{
+                      bg: activeTab === "preview" ? "brand.700" : "bg.subtle",
+                    }}
                     onClick={() => setActiveTab("preview")}
                     borderRadius="lg"
                   >
@@ -308,16 +335,52 @@ export const McpConfigDialog = ({ onClose }: Props) => {
                   <VStack align="stretch" gap={3}>
                     {/* Textarea Editor */}
                     <Box position="relative">
-                      <textarea
-                        value={rawJson}
-                        onChange={(e) => setRawJson(e.target.value)}
-                        disabled={loading}
-                        style={{
-                          ...textareaStyles,
-                          borderColor: !isValid ? "var(--chakra-colors-red-500)" : "var(--chakra-colors-border-default)",
-                        }}
-                        placeholder={`{\n  "mcpServers": {}\n}`}
-                      />
+                      {loading ? (
+                        <VStack
+                          align="stretch"
+                          p={4}
+                          height="200px"
+                          bg="bg.panel"
+                          borderRadius="md"
+                          borderWidth="1px"
+                          borderColor="border.subtle"
+                        >
+                          <Box
+                            height="20px"
+                            bg="bg.subtle"
+                            borderRadius="sm"
+                            width="90%"
+                            animation="pulse 2s infinite"
+                          />
+                          <Box
+                            height="20px"
+                            bg="bg.subtle"
+                            borderRadius="sm"
+                            width="70%"
+                            animation="pulse 2s infinite"
+                          />
+                          <Box
+                            height="20px"
+                            bg="bg.subtle"
+                            borderRadius="sm"
+                            width="85%"
+                            animation="pulse 2s infinite"
+                          />
+                        </VStack>
+                      ) : (
+                        <textarea
+                          value={rawJson}
+                          onChange={(e) => setRawJson(e.target.value)}
+                          disabled={loading}
+                          style={{
+                            ...textareaStyles,
+                            borderColor: !isValid
+                              ? "var(--chakra-colors-red-500)"
+                              : "var(--chakra-colors-border-default)",
+                          }}
+                          placeholder={`[\n  {\n    "type": "sse",\n    "server_url": "https://..."\n  }\n]`}
+                        />
+                      )}
                     </Box>
 
                     {/* Prettifier and validation warning */}
@@ -339,15 +402,32 @@ export const McpConfigDialog = ({ onClose }: Props) => {
                       <HStack gap={1.5}>
                         {isValid ? (
                           <>
-                            <FiCheck color="var(--chakra-colors-green-500)" size={14} />
-                            <Text fontSize="xs" color="green.500" fontWeight="medium">
+                            <FiCheck
+                              color="var(--chakra-colors-green-500)"
+                              size={14}
+                            />
+                            <Text
+                              fontSize="xs"
+                              color="green.500"
+                              fontWeight="medium"
+                            >
                               Valid JSON
                             </Text>
                           </>
                         ) : (
                           <>
-                            <FiAlertTriangle color="var(--chakra-colors-red-500)" size={14} />
-                            <Text fontSize="xs" color="red.500" fontWeight="medium" maxW="300px" truncate title={validationError}>
+                            <FiAlertTriangle
+                              color="var(--chakra-colors-red-500)"
+                              size={14}
+                            />
+                            <Text
+                              fontSize="xs"
+                              color="red.500"
+                              fontWeight="medium"
+                              maxW="300px"
+                              truncate
+                              title={validationError}
+                            >
                               {validationError}
                             </Text>
                           </>
@@ -359,11 +439,19 @@ export const McpConfigDialog = ({ onClose }: Props) => {
 
                     {/* Templates Helper Bar */}
                     <VStack align="stretch" gap={2}>
-                      <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+                      <Text
+                        fontSize="xs"
+                        fontWeight="semibold"
+                        color="fg.muted"
+                      >
                         Quick Add Server Templates:
                       </Text>
                       <HStack gap={2} flexWrap="wrap">
-                        {["sqlite", "puppeteer", "brave-search", "postgres", "filesystem"].map((t) => (
+                        {[
+                          "remote-search",
+                          "remote-postgres",
+                          "custom-http",
+                        ].map((t) => (
                           <Button
                             key={t}
                             size="xs"
@@ -393,9 +481,17 @@ export const McpConfigDialog = ({ onClose }: Props) => {
                   >
                     {rawJson.trim() ? (
                       <CodeBlockAdapterProvider value={shikiAdapter}>
-                        <CodeBlock.Root code={rawJson} language="json" size="sm">
+                        <CodeBlock.Root
+                          code={rawJson}
+                          language="json"
+                          size="sm"
+                        >
                           <CodeBlock.Content p={0}>
-                            <CodeBlock.Code p={0} bg="transparent" border="none">
+                            <CodeBlock.Code
+                              p={0}
+                              bg="transparent"
+                              border="none"
+                            >
                               <CodeBlock.CodeText />
                             </CodeBlock.Code>
                           </CodeBlock.Content>

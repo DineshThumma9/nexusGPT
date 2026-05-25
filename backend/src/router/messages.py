@@ -4,21 +4,19 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
+from langchain_core.messages.ai import AIMessageChunk
 from loguru import logger
 
 from src.db.dbs import get_checkpointer, get_db
 from src.db.neo4j import get_graph
 from src.db.qdrant_client import get_user_vector_db
+from src.db.redis_client import redis_client
 from src.models.enums import SenderRole
-from src.models.models import KnowledgeBase, Session, Message
+from src.models.models import KnowledgeBase, Message, Session
 from src.models.schema import MessageRequest
 from src.router.auth import get_current_user
 from src.service.set_up_service import build_agent, get_llm_instance
 from src.service.tools import make_tools
-from src.db.redis_client import redis_client
-
-from langchain_core.messages.ai import AIMessageChunk
-
 
 router = APIRouter()
 
@@ -71,6 +69,7 @@ async def message_stream(
 
     # Always provide tools! The tools will handle missing context gracefully.
     tools = await make_tools(
+        user_id=user.userid,
         vector_db=vector_db,
         neo4j_ns=ns,
         graph_obj=graph_obj_instance,
@@ -99,14 +98,9 @@ async def message_stream(
     )
 
 
-
 async def add_message(db, session_id, sender, content):
     try:
-        message = Message(
-            session_id=UUID(session_id),
-            sender=sender,
-            content=content
-        )
+        message = Message(session_id=UUID(session_id), sender=sender, content=content)
         db.add(message)
         db.commit()
         await redis_client.delete(f"sessions:{session_id}")
@@ -115,9 +109,9 @@ async def add_message(db, session_id, sender, content):
         db.rollback()
 
 
-
-async def _stream(agent, message: str, config: dict, request: Request, session_id: str, db):
-
+async def _stream(
+    agent, message: str, config: dict, request: Request, session_id: str, db
+):
 
     await add_message(db, session_id, SenderRole.USER, message)
     yield f"data: {json.dumps({'type': 'start', 'content': ''})}\n\n"
@@ -132,7 +126,9 @@ async def _stream(agent, message: str, config: dict, request: Request, session_i
                 break
             msg_chunk, _meta = chunk
             if hasattr(msg_chunk, "content") and msg_chunk.content:
-                if isinstance(msg_chunk, AIMessageChunk) and isinstance(msg_chunk.content, str):
+                if isinstance(msg_chunk, AIMessageChunk) and isinstance(
+                    msg_chunk.content, str
+                ):
                     token = msg_chunk.content
                     full += token
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"

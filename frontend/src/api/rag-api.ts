@@ -65,7 +65,3 @@ export const getMockKbStatus = async (kb_id: string) => {
   const res = await ragAPI.get(`/mock/status?kb_id=${kb_id}&_t=${Date.now()}`);
   return res.data;
 };
-
-
-
-

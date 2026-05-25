@@ -3,16 +3,15 @@ import os
 
 from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException
+from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langchain.agents import create_agent
 
 from src.db import get_db
 from src.models.models import APIKEYS, UserLLMConfig
 from src.service.auth_service import get_current_user
 from src.service.tools import middleware_setup
-
 
 logger = logging.getLogger("set_up_service")
 fernet_key = os.getenv("FERNET_KEY", "d3FVcotBFzBnqZ4BE0zlgji_YYZiK5hkDO3EzX9H7fs=")
@@ -36,7 +35,7 @@ llm_providers = [
     "mistralai",
     "openrouter",
     "huggingface",
-    "groq"
+    "groq",
 ]
 
 
@@ -69,7 +68,7 @@ def build_agent(
         "You have the autonomy to choose whichever tool fits the situation best to explore the knowledge base, "
         "retrieve context, and provide accurate answers. Do not guess information; always rely on your tools first."
     )
-    
+
     if source_ref and source_type:
         system_prompt += (
             f"\n\nActive Knowledge Base Context:\n"
@@ -136,13 +135,16 @@ def get_llm_instance(db=Depends(get_db), user=Depends(get_current_user)):
 
     from langchain.chat_models import init_chat_model
 
-    logger.info(f"Model: {config.model} Provider: {config.provider} API Key: {decrypted_key} `{config.provider}/{config.model}`")
+    logger.info(
+        f"Model: {config.model} Provider: {config.provider} API Key: {decrypted_key} `{config.provider}/{config.model}`"
+    )
     return init_chat_model(
         model=config.model, model_provider=config.provider, api_key=decrypted_key
     )
 
 
 from collections import defaultdict
+
 import requests
 
 
