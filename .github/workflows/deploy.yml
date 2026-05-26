@@ -19,7 +19,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-            cd ~/centralGPT/backend
+            cd ~/nexusGPT/backend
 
             echo "Pulling latest code..."
             git pull origin main
