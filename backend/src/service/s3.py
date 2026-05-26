@@ -2,17 +2,11 @@ import logging
 import os
 import tempfile
 
+import boto3
 from botocore.exceptions import ClientError
 from fastapi import UploadFile
 
-import boto3
-
-
-
-
 logger = logging.getLogger("s3")
-
-
 
 
 def _get_s3_client():
@@ -20,8 +14,6 @@ def _get_s3_client():
         "s3",
         region_name=os.getenv("AWS_REGION_NAME", "ap-south-1"),
     )
-
-
 
 
 def _bucket() -> str:
@@ -87,9 +79,13 @@ def delete_prefix_from_s3(kb_id: str) -> None:
             s3.delete_objects(
                 Bucket=bucket, Delete={"Objects": objects_to_delete, "Quiet": True}
             )
-            logger.info(f"Deleted {len(objects_to_delete)} objects from S3 prefix '{prefix}'")
+            logger.info(
+                f"Deleted {len(objects_to_delete)} objects from S3 prefix '{prefix}'"
+            )
         else:
-            logger.info(f"No objects found under S3 prefix '{prefix}', nothing to delete")
+            logger.info(
+                f"No objects found under S3 prefix '{prefix}', nothing to delete"
+            )
     except ClientError as e:
         logger.error(f"S3 deletion failed for prefix '{prefix}': {e}")
         raise

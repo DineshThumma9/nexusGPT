@@ -147,7 +147,6 @@ async def git_rag(
     }
 
 
-
 from botocore.exceptions import ClientError
 
 from src.service.s3 import delete_prefix_from_s3, upload_file_to_s3

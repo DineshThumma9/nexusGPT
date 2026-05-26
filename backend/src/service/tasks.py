@@ -256,7 +256,9 @@ def ingest_pdf_task(
             tmp_path = download_s3_to_tempfile(s3_key)
             try:
                 loader = LoaderClass(tmp_path)
-                splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=24)
+                splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=512, chunk_overlap=24
+                )
                 nodes = loader.load_and_split(splitter)
 
                 for node in nodes:
