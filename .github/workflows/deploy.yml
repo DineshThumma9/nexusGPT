@@ -25,9 +25,9 @@ jobs:
             git pull origin main
 
             echo "Rebuilding and restarting containers..."
-            docker compose up --build -d
+            sudo docker compose up --build -d
 
             echo "Removing unused Docker images..."
-            docker image prune -f
+            sudo docker image prune -f
 
             echo "✅ Deployment complete!"
