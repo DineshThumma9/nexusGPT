@@ -242,37 +242,42 @@ def ingest_pdf_task(
 
     try:
         all_nodes = []
-        for file_path in file_paths:
-            print(f"Ingesting PDF file path: {file_path}")
+        from src.service.s3 import download_s3_to_tempfile
 
-            file_ext = os.path.splitext(file_path)[1].lower()
+        for s3_key in file_paths:
+            print(f"Downloading PDF from S3: {s3_key}")
+
+            file_ext = os.path.splitext(s3_key)[1].lower()
             LoaderClass = map_loaders.get(file_ext)
             if not LoaderClass:
                 print(f"Skipping unsupported file extension: {file_ext}")
                 continue
 
-            loader = LoaderClass(file_path)
+            tmp_path = download_s3_to_tempfile(s3_key)
+            try:
+                loader = LoaderClass(tmp_path)
+                splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=24)
+                nodes = loader.load_and_split(splitter)
 
-            splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=24)
-            nodes = loader.load_and_split(splitter)
+                for node in nodes:
+                    node.metadata["kb_id"] = ns
+                    node.metadata["source"] = os.path.basename(s3_key)
 
-            for node in nodes:
-                node.metadata["kb_id"] = ns
-                node.metadata["source"] = os.path.basename(file_path)
-
-            all_nodes.extend(nodes)
+                all_nodes.extend(nodes)
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
 
         if all_nodes:
             print(
                 f"Upserting {len(all_nodes)} PDF chunks to Qdrant under namespace {ns}..."
             )
-            dense_emb, sparse_emb = get_embeddings()
+            dense_emb = get_embeddings()
             store = QdrantVectorStore(
                 client=_get_sync_client(),
                 collection_name=COLLECTION,
                 embedding=dense_emb,
-                sparse_embedding=sparse_emb,
-                retrieval_mode=RetrievalMode.HYBRID,
+                retrieval_mode=RetrievalMode.DENSE,
             )
             store.add_documents(all_nodes)
 

@@ -21,3 +21,6 @@ logs/
 later/
 frontend/
 .env
+# Exclude large locally-cached model files and uploaded PDFs
+storage/
+uploads/

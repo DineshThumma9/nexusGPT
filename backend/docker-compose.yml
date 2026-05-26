@@ -8,6 +8,46 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_URL=http://qdrantdb:6333
+    depends_on:
+      - redis
+      - qdrantdb
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: centralgpt_celery
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - QDRANT_URL=http://qdrantdb:6333
+    depends_on:
+      - redis
+      - qdrantdb
+    command: celery -A src.service.tasks.queue worker --loglevel=info --concurrency=2
+
+  qdrantdb:
+    image: qdrant/qdrant
+    container_name: qdrantdb
+    ports:
+      - "6333:6333"
+      - "6334:6334"
     volumes:
-      - .:/app  #
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+      - qdrant_data:/qdrant/storage
+
+  redis:
+    image: redis:6.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  qdrant_data:
+  redis_data:

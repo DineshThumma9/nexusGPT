@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 from langchain_community.embeddings import FastEmbedEmbeddings, JinaEmbeddings
 from langchain_nomic import NomicEmbeddings
-from langchain_qdrant import FastEmbedSparse, QdrantVectorStore, RetrievalMode
+from langchain_qdrant import QdrantVectorStore, RetrievalMode
 from langchain_voyageai import VoyageAIEmbeddings
 from qdrant_client import AsyncQdrantClient, QdrantClient, models
 from qdrant_client.models import (
@@ -39,17 +39,13 @@ FASTEMBED_CACHE_DIR = os.path.join(_PROJECT_ROOT, "storage", "fastembed_cache")
 
 
 def get_embeddings():
-    global _dense_embeddings, _sparse_embeddings
-    if _dense_embeddings is None or _sparse_embeddings is None:
+    global _dense_embeddings
+    if _dense_embeddings is None:
         _dense_embeddings = NomicEmbeddings(
             model="nomic-embed-text-v1.5",
             nomic_api_key=os.getenv("NOMIC_API_KEY"),
         )
-        _sparse_embeddings = FastEmbedSparse(
-            model_name="Qdrant/bm25",
-            cache_dir=FASTEMBED_CACHE_DIR,
-        )
-    return _dense_embeddings, _sparse_embeddings
+    return _dense_embeddings
 
 
 def get_code_embeddings():
@@ -78,9 +74,7 @@ def _setup_collections(client: QdrantClient):
                     vectors_config=models.VectorParams(
                         size=VECTOR_DIM, distance=models.Distance.COSINE
                     ),
-                    sparse_vectors_config={
-                        "langchain-sparse": models.SparseVectorParams()
-                    },
+                    # Sparse vectors removed: using dense-only (Nomic) retrieval
                 )
             else:
                 client.create_collection(
@@ -149,13 +143,12 @@ def get_user_vector_db(ns: str, source_type: str | None = None):
             embedding=get_code_embeddings(),
         )
     else:
-        dense_emb, sparse_emb = get_embeddings()
+        dense_emb = get_embeddings()
         store = QdrantVectorStore(
             client=_get_sync_client(),
             collection_name=collection,
             embedding=dense_emb,
-            sparse_embedding=sparse_emb,
-            retrieval_mode=RetrievalMode.HYBRID,
+            retrieval_mode=RetrievalMode.DENSE,
         )
     kb_filter = Filter(
         must=[FieldCondition(key="metadata.kb_id", match=MatchValue(value=ns))]

@@ -147,6 +147,12 @@ async def git_rag(
     }
 
 
+
+from botocore.exceptions import ClientError
+
+from src.service.s3 import delete_prefix_from_s3, upload_file_to_s3
+
+
 @router.post("/upload")
 async def get_rag(
     files: List[UploadFile] = File(...),
@@ -173,14 +179,15 @@ async def get_rag(
     for file in files:
         if not file.filename:
             continue
-        # Use safe name prefix to avoid collision
-        safe_filename = f"{kb_id}_{file.filename}"
-        file_path = os.path.join(UPLOADS_DIR, safe_filename)
+        # Upload to S3
+        try:
+            s3_key = await upload_file_to_s3(file=file, kb_id=kb_id)
+        except ClientError as e:
+            logger.error(f"Failed to upload file to S3: {e}")
+            raise HTTPException(status_code=500, detail="Failed to upload file to S3")
 
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        file_paths.append(file_path)
+        # We append the S3 key to file_paths so Celery can download it
+        file_paths.append(s3_key)
 
     # Update Redis status key
     await redis_client.set(
