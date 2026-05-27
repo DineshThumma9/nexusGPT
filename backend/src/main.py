@@ -87,6 +87,8 @@ app.add_middleware(
         "https://central-gpt.vercel.app",
         "https://central-gpt-frontend.vercel.app",
         "https://main.d2r3zpg0x741h8.amplifyapp.com",
+        "https://centralgpt.app",
+        "https://www.centralgpt.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
