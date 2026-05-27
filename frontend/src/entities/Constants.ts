@@ -58,6 +58,15 @@ export const Constants = () => {
     "mistralai/Mistral-7B-Instruct-v0.3",
   ];
 
+  const groqModels: string[] = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-70b-versatile",
+    "llama3-70b-8192",
+    "llama3-8b-8192",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it",
+  ];
+
   const modelsProviders: string[] = [
     "Openai",
     "Google GenAI",
@@ -66,6 +75,7 @@ export const Constants = () => {
     "Mistral",
     "Openrouter",
     "Hugging Face",
+    "Groq",
   ];
 
   const llms: string[] = [
@@ -76,6 +86,7 @@ export const Constants = () => {
     "mistralai",
     "openrouter",
     "huggingface",
+    "groq",
   ];
 
   const providers_api_link = new Map<string, string>([
@@ -90,6 +101,7 @@ export const Constants = () => {
     ["openrouter", "https://openrouter.ai/settings/keys"],
     ["hugging face", "https://huggingface.co/settings/tokens"],
     ["huggingface", "https://huggingface.co/settings/tokens"],
+    ["groq", "https://console.groq.com/keys"],
   ]);
 
   const api_providers_models = new Map<string, string>([
@@ -104,6 +116,7 @@ export const Constants = () => {
     ["openrouter", "https://openrouter.ai/models"],
     ["hugging face", "https://huggingface.co/models"],
     ["huggingface", "https://huggingface.co/models"],
+    ["groq", "https://console.groq.com/docs/models"],
   ]);
 
   type ProviderInfo = {
@@ -201,6 +214,14 @@ export const Constants = () => {
         model_link: api_providers_models.get("hugging face")!,
       },
     ],
+    [
+      "groq",
+      {
+        models: groqModels,
+        api_link: providers_api_link.get("groq")!,
+        model_link: api_providers_models.get("groq")!,
+      },
+    ],
   ]);
 
   const providers_models = new Map<string, string[]>([
@@ -211,6 +232,7 @@ export const Constants = () => {
     ["mistral", mistralModels],
     ["openrouter", openrouterModels],
     ["hugging face", huggingfaceModels],
+    ["groq", groqModels],
   ]);
 
   return {

@@ -23,8 +23,13 @@ interface Props {
 }
 
 const APIKey = ({ provider, title, link }: Props) => {
-  const { dialogOpen, setDialogOpen, currentAPIProvider, currentAPIKey } =
-    useInitStore();
+  const {
+    dialogOpen,
+    setDialogOpen,
+    currentAPIProvider,
+    currentAPIKey,
+    setCurrentAPIKey,
+  } = useInitStore();
 
   // Get the constants to access API links
   const constants = Constants();
@@ -33,17 +38,14 @@ const APIKey = ({ provider, title, link }: Props) => {
   const ref = useRef<HTMLInputElement>(null);
   const [apiKey, setAPIKey] = useState("");
 
-  // Sync local state with global state when dialog opens
+  // Focus the input when dialog opens
   useEffect(() => {
     if (dialogOpen) {
-      if (currentAPIKey) {
-        setAPIKey(currentAPIKey);
-      }
       setTimeout(() => {
         ref.current?.focus();
       }, 50);
     }
-  }, [dialogOpen, currentAPIKey]);
+  }, [dialogOpen]);
 
   const handleDialogChange = ({ open }: { open: boolean }) => {
     setDialogOpen(open);
@@ -64,11 +66,15 @@ const APIKey = ({ provider, title, link }: Props) => {
       return;
     }
 
-    try {
-      await apiKeySelection(currentAPIProvider, apiKey);
+    const keyToSave = apiKey;
 
-      setDialogOpen(false);
-      setAPIKey(""); // Clear local state
+    // Optimistic UI Update
+    setCurrentAPIKey(keyToSave);
+    setDialogOpen(false);
+    setAPIKey(""); // Clear local state
+
+    try {
+      await apiKeySelection(currentAPIProvider, keyToSave);
     } catch (error) {
       console.error("Error in handleApiKeySelect:", error);
     }

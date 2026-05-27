@@ -12,7 +12,7 @@ logger = logging.getLogger("s3")
 def _get_s3_client():
     return boto3.client(
         "s3",
-        region_name=os.getenv("AWS_REGION_NAME", "ap-south-1"),
+        region_name=os.getenv("AWS_REGION"),
     )
 
 
@@ -27,7 +27,7 @@ async def upload_file_to_s3(file: UploadFile, kb_id: str) -> str:
     """
     Upload an UploadFile object to S3 under the given kb_id prefix.
     Returns the S3 key (e.g. 'kb_id/filename.pdf').
-    Raises ClientError on failure.
+    Raises Exception on failure.
     """
     s3_key = f"{kb_id}/{file.filename}"
     try:
@@ -35,8 +35,8 @@ async def upload_file_to_s3(file: UploadFile, kb_id: str) -> str:
         s3.upload_fileobj(file.file, _bucket(), s3_key)
         logger.info(f"Uploaded file to S3: s3://{_bucket()}/{s3_key}")
         return s3_key
-    except ClientError as e:
-        logger.error(f"S3 upload failed for key '{s3_key}': {e}")
+    except Exception as e:
+        logger.error(f"S3 upload failed for key '{s3_key}': {e}", exc_info=True)
         raise
 
 

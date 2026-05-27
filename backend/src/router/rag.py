@@ -181,9 +181,9 @@ async def get_rag(
         # Upload to S3
         try:
             s3_key = await upload_file_to_s3(file=file, kb_id=kb_id)
-        except ClientError as e:
+        except Exception as e:
             logger.error(f"Failed to upload file to S3: {e}")
-            raise HTTPException(status_code=500, detail="Failed to upload file to S3")
+            raise HTTPException(status_code=500, detail=str(e))
 
         # We append the S3 key to file_paths so Celery can download it
         file_paths.append(s3_key)

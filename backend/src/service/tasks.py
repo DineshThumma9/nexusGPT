@@ -1,6 +1,8 @@
 import asyncio
 import json
+import logging
 import os
+from datetime import datetime
 from typing import List
 from uuid import UUID
 
@@ -12,11 +14,14 @@ from langchain_community.document_loaders import (
     UnstructuredPowerPointLoader,
     UnstructuredWordDocumentLoader,
 )
+from langchain_groq import ChatGroq as Groq
 from langchain_qdrant import QdrantVectorStore, RetrievalMode
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pydantic import BaseModel, Field
+from sqlmodel import select
 
 from src.db import dbs
-from src.db.dbs import get_db
+from src.db.dbs import SessionLocal, get_db
 from src.db.qdrant_client import (
     COLLECTION,
     _get_sync_client,
@@ -25,6 +30,7 @@ from src.db.qdrant_client import (
 from src.db.redis_client import queue, redis
 from src.models.enums import KBStatus
 from src.models.models import KnowledgeBase
+from src.models.models import Session as SessionModel
 from src.models.schema import GitRequest
 from src.service.ingesation import (
     build_hierarchy,
@@ -32,15 +38,30 @@ from src.service.ingesation import (
     fetch_repo,
     insert_to_databases,
 )
+from src.service.prompt import title_prompt
 
 
 @worker_process_init.connect
 def celery_worker_init(*args, **kwargs):
-    """Ensure database connections are clean when celery workers fork."""
+    """Ensure database connections are clean when celery workers fork and initialize Sentry."""
+    import sentry_sdk
+
     from src.db.dbs import engine
 
     if engine is not None:
         engine.dispose()
+
+    sentry_dsn = os.getenv("SENTRY_DSN")
+    if sentry_dsn:
+        import sentry_sdk
+        from sentry_sdk.integrations.celery import CeleryIntegration
+
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            traces_sample_rate=1.0,
+            profiles_sample_rate=1.0,
+            integrations=[CeleryIntegration()],
+        )
 
 
 def update_kb(kb_id, status):
@@ -59,14 +80,6 @@ def update_kb(kb_id, status):
     finally:
         db.close()
 
-
-import logging
-from datetime import datetime
-
-from sqlmodel import select
-
-from src.db.dbs import SessionLocal
-from src.models.models import Session as SessionModel
 
 logger = logging.getLogger()
 
@@ -103,23 +116,23 @@ def update_session(
     # FIXED: Removed the duplicate, unprotected logger.info from down here
 
 
-from langchain_groq import ChatGroq as Groq
-
-from src.service.prompt import title_prompt
+class Title(BaseModel):
+    title: str = Field(description="Title of the session .Be Consise and Precise.")
 
 
 @queue.task(time_limit=60)
 def session_title_gen(query: str, session_id: str, user_id: str):
     try:
-        title_gen = Groq(model="compound-beta", api_key=os.getenv("GROQ_API_KEY"))
+        model = Groq(
+            model=os.getenv("TITLE_MODEL"), api_key=os.getenv("GROQ_API_KEY")
+        ).with_structured_output(Title)
 
-        session_title = title_gen.invoke(title_prompt.format(query=query))
+        session_title = model.invoke(title_prompt.format(query=query))
 
-        result = (
-            session_title.content
-            if hasattr(session_title, "content")
-            else str(session_title)
-        )
+        if isinstance(session_title, Title):
+            result = session_title.title
+        else:
+            result = getattr(session_title, "content", str(session_title))
 
         cleaned_title = "New Chat"
         if result:

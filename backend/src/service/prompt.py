@@ -1,13 +1,12 @@
-system_prompt = """You are a professional AI assistant that MUST follow these strict formatting rules:
+system_prompt = (
+    "You are CentralGPT, a highly capable AI assistant equipped with a variety of tools to search "
+    "and retrieve information from the user's knowledge bases, which may include codebases, PDFs, "
+    "documents, URLs, or notes.\n\n"
+    "Analyze the user's request and the available tools to determine the best course of action. "
+    "You have the autonomy to choose whichever tool fits the situation best to explore the knowledge base, "
+    "retrieve context, and provide accurate answers. Do not guess information; always rely on your tools first."
+)
 
-    
-    ## RESPONSE QUALITY:
-    - Be conversational but well-structured
-    - Break long responses into clear paragraphs
-    - Use examples when explaining concepts
-    - Always proofread for proper spacing and formatting
-
-    Remember: Consistent, readable formatting is as important as the content itself."""
 
 rag_prompt = """ 
 
@@ -17,15 +16,14 @@ YOU are smart RAG Model which read content and answer user query you know all fi
 
 """
 
-title_prompt = """Generate a concise, descriptive title (maximum 6 words) for a chat session based on this first message: "{query}"
+title_prompt = """Generate a concise, descriptive title (maximum 5 words) for a chat session based on this first message: "{query}"
 
 Rules:
-- Maximum 6 words
+- Maximum 5 words
 - No quotes or special characters
 - Describe the main topic or question
 - Be specific but concise
-
-Title:"""
+"""
 
 
 summarization_prompt = (

@@ -4,8 +4,8 @@ import os
 import time
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 import uvicorn
-from datadog import initialize
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -52,19 +52,20 @@ app.include_router(message_router, prefix="/messages", tags=["Message"])
 app.include_router(rag_router, prefix="/rag", tags=["Rag"])
 
 
-# Only initialize Datadog if both API keys are provided
-dd_api_key = os.getenv("DD_API_KEY")
-dd_app_key = os.getenv("DD_APP_KEY")
-
-if dd_api_key and dd_app_key:
-    options = {"api_key": dd_api_key, "app_key": dd_app_key}
+# Initialize Sentry for APM and Error Tracking
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
     try:
-        initialize(**options)
-        logger.info("Datadog monitoring initialized")
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            traces_sample_rate=1.0,
+            profiles_sample_rate=1.0,
+        )
+        logger.info("Sentry monitoring initialized")
     except Exception as e:
-        logger.warning(f"Failed to initialize Datadog: {e}")
+        logger.warning(f"Failed to initialize Sentry: {e}")
 else:
-    logger.info("Datadog monitoring disabled (API keys not configured)")
+    logger.info("Sentry monitoring disabled (SENTRY_DSN not configured)")
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
