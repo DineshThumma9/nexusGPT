@@ -105,7 +105,7 @@ def update_session(
 
 from langchain_groq import ChatGroq as Groq
 
-from src.service.prompt import prompt_template
+from src.service.prompt import title_prompt
 
 
 @queue.task(time_limit=60)
@@ -113,7 +113,7 @@ def session_title_gen(query: str, session_id: str, user_id: str):
     try:
         title_gen = Groq(model="compound-beta", api_key=os.getenv("GROQ_API_KEY"))
 
-        session_title = title_gen.invoke(prompt_template.format(query=query))
+        session_title = title_gen.invoke(title_prompt.format(query=query))
 
         result = (
             session_title.content
