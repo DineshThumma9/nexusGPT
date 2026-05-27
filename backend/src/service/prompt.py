@@ -17,7 +17,7 @@ YOU are smart RAG Model which read content and answer user query you know all fi
 
 """
 
-prompt_template = """Generate a concise, descriptive title (maximum 6 words) for a chat session based on this first message: "{query}"
+title_prompt = """Generate a concise, descriptive title (maximum 6 words) for a chat session based on this first message: "{query}"
 
 Rules:
 - Maximum 6 words

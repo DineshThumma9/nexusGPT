@@ -42,6 +42,11 @@ async def message_stream(
     ns = None
     graph_obj_instance = None
 
+    from src.service.tasks import session_title_gen
+
+    if session.title == "New Chat":
+        session_title_gen.delay(body.msg, str(body.session_id), str(user.userid))
+
     # 2. Extract RAG context if kb_id is present
     if kb_id is not None:
         kb = db.query(KnowledgeBase).filter_by(kb_id=kb_id).first()

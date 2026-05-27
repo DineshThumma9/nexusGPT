@@ -14,7 +14,7 @@ from src.service.auth_service import get_current_user
 from src.service.tools import middleware_setup
 
 logger = logging.getLogger("set_up_service")
-fernet_key = os.getenv("FERNET_KEY", "d3FVcotBFzBnqZ4BE0zlgji_YYZiK5hkDO3EzX9H7fs=")
+fernet_key = os.getenv("FERNET_KEY")
 fernet = Fernet(fernet_key)
 
 api_providers = [

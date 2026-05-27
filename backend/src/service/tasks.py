@@ -103,6 +103,40 @@ def update_session(
     # FIXED: Removed the duplicate, unprotected logger.info from down here
 
 
+from langchain_groq import ChatGroq as Groq
+
+from src.service.prompt import prompt_template
+
+
+@queue.task(time_limit=60)
+def session_title_gen(query: str, session_id: str, user_id: str):
+    try:
+        title_gen = Groq(model="compound-beta", api_key=os.getenv("GROQ_API_KEY"))
+
+        session_title = title_gen.invoke(prompt_template.format(query=query))
+
+        result = (
+            session_title.content
+            if hasattr(session_title, "content")
+            else str(session_title)
+        )
+
+        cleaned_title = "New Chat"
+        if result:
+            cleaned_title = result.strip().strip('"').strip("'")
+            if not cleaned_title or len(cleaned_title) == 0:
+                cleaned_title = "New Chat"
+
+        # Save the generated title using the existing update_session logic
+        update_session(session_id, cleaned_title, user_id)
+        return cleaned_title
+
+    except Exception as e:
+        logger.error(f"Error in session_title_gen: {e}")
+        # In case of failure, don't update anything so we can potentially try again later, or just return default
+        return "New Chat"
+
+
 @queue.task(time_limit=3600)
 def ingest_git_repo_task(
     req_dict: dict, kb_id: str, session_id: str = None, user_id: str = None
