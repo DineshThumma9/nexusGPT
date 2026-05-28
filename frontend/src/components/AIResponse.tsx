@@ -7,10 +7,9 @@ import {
   IconButton,
   Skeleton,
   SkeletonText,
-  Spinner,
   VStack,
 } from "@chakra-ui/react";
-import { RepeatIcon } from "lucide-react";
+import { Tooltip } from "./ui/tooltip";
 import { LuCheck, LuCopy } from "react-icons/lu";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -19,7 +18,6 @@ import rehypeHighlight from "rehype-highlight";
 import type { Message } from "../entities/Message";
 import useSessionStore from "../store/sessionStore";
 import { useEffect, useMemo, useState } from "react";
-import { toaster } from "./ui/toaster.tsx";
 import { createMarkdownComponents } from "./MarkdownComponents";
 import { motion } from "framer-motion";
 import SourcesDisplay from "./SourceDisplay.tsx";
@@ -89,11 +87,8 @@ const AIResponse = ({ msg, idx }: Props) => {
   const { messages, isStreaming } = useSessionStore();
 
   const [displayed, setDisplayed] = useState(msg.content || "");
-  const [retry, setRetry] = useState(false);
 
   const messageBox = getMessageBox();
-
-  const actionButton = getActionButton();
 
   const isLastMessage = useMemo(
     () => idx === messages.length - 1,
@@ -110,18 +105,6 @@ const AIResponse = ({ msg, idx }: Props) => {
     const sourcesRegex = /\n\n📚 \*\*Sources:\*\*\n[\s\S]*$/;
     return displayed.replace(sourcesRegex, "");
   }, [displayed]);
-
-  const handleRetry = () => {
-    setRetry(true);
-    setTimeout(() => {
-      setRetry(false);
-      toaster.create({
-        title: "Retry simulated",
-        type: "info",
-        duration: 1500,
-      });
-    }, 1500);
-  };
 
   useEffect(() => {
     // Only update displayed content if there's a significant change
@@ -148,85 +131,89 @@ const AIResponse = ({ msg, idx }: Props) => {
       bg={"bg.canvas"}
     >
       <Box flex="1" minW={0} maxW="800px" mx="auto">
-        {!retry ? (
-          <Box>
-            <Box {...messageBox}>
-              <Box
-                className="markdown-content"
-                minH={isCurrentlyStreaming ? "60px" : "auto"}
-                css={{
-                  wordBreak: "break-word",
-                  overflowWrap: "anywhere",
-                  "& > *:first-child": {
-                    marginTop: 0,
-                  },
-                  "& > *:last-child": {
-                    marginBottom: 0,
-                  },
-                }}
-              >
-                {cleanContent ? (
-                  <>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
-                      rehypePlugins={[rehypeHighlight]}
-                      components={markdownComponents}
-                    >
-                      {cleanContent}
-                    </ReactMarkdown>
-                    {isCurrentlyStreaming && (
-                      <Box
-                        as="span"
-                        display="inline-block"
-                        w="2px"
-                        h="1.2em"
-                        bg={{ base: "brand.600", _dark: "brand.500" }}
-                        ml="1px"
-                        animation="blink 1s infinite"
-                        css={{
-                          "@keyframes blink": {
-                            "0%, 50%": { opacity: 1 },
-                            "51%, 100%": { opacity: 0 },
-                          },
-                        }}
-                      />
-                    )}
-                  </>
-                ) : isCurrentlyStreaming ? (
-                  <MotionBox
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0 }}
+        <Box>
+          <Box {...messageBox}>
+            <Box
+              className="markdown-content"
+              minH={isCurrentlyStreaming ? "60px" : "auto"}
+              css={{
+                wordBreak: "break-word",
+                overflowWrap: "anywhere",
+                "& > *:first-child": {
+                  marginTop: 0,
+                },
+                "& > *:last-child": {
+                  marginBottom: 0,
+                },
+              }}
+            >
+              {cleanContent ? (
+                <>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    rehypePlugins={[rehypeHighlight]}
+                    components={markdownComponents}
                   >
-                    <TypingIndicator />
-                  </MotionBox>
-                ) : (
-                  <VStack align="stretch" gap={3}>
-                    <SkeletonText noOfLines={3} gap="4" />
-                    <Skeleton height="20px" borderRadius="md" />
-                    <Skeleton height="16px" width="80%" borderRadius="md" />
-                  </VStack>
-                )}
-              </Box>
+                    {cleanContent}
+                  </ReactMarkdown>
+                  {isCurrentlyStreaming && (
+                    <Box
+                      as="span"
+                      display="inline-block"
+                      w="2px"
+                      h="1.2em"
+                      bg={{ base: "brand.600", _dark: "brand.500" }}
+                      ml="1px"
+                      animation="blink 1s infinite"
+                      css={{
+                        "@keyframes blink": {
+                          "0%, 50%": { opacity: 1 },
+                          "51%, 100%": { opacity: 0 },
+                        },
+                      }}
+                    />
+                  )}
+                </>
+              ) : isCurrentlyStreaming ? (
+                <MotionBox
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <TypingIndicator />
+                </MotionBox>
+              ) : (
+                <VStack align="stretch" gap={3}>
+                  <SkeletonText noOfLines={3} gap="4" />
+                  <Skeleton height="20px" borderRadius="md" />
+                  <Skeleton height="16px" width="80%" borderRadius="md" />
+                </VStack>
+              )}
+            </Box>
 
-              {!isCurrentlyStreaming && (
-                <HStack mt={3} gap={2}>
+            {!isCurrentlyStreaming && (
+              <HStack mt={3} gap={1}>
+                <Tooltip
+                  content="Copy response"
+                  positioning={{ placement: "top" }}
+                  openDelay={400}
+                >
                   <Clipboard.Root value={cleanContent.trimEnd()}>
                     <Clipboard.Trigger asChild>
                       <IconButton
                         size="xs"
-                        variant="outline"
-                        color={{ base: "#374151", _dark: "#d1d5db" }}
-                        borderColor={{ base: "#d1d5db", _dark: "#6b7280" }}
-                        bg={{ base: "white", _dark: "#1f2937" }}
+                        variant="ghost"
+                        bg="transparent"
+                        px={2}
+                        py={1}
+                        color={{ base: "gray.400", _dark: "gray.500" }}
                         _hover={{
-                          bg: { base: "#f3f4f6", _dark: "#374151" },
-                          borderColor: { base: "#9ca3af", _dark: "#9ca3af" },
-                          color: { base: "#111827", _dark: "#f9fafb" },
+                          bg: "transparent",
+                          color: { base: "gray.700", _dark: "gray.300" },
+                          transform: "scale(1.1)",
                         }}
-                        _active={{
-                          bg: { base: "#e5e7eb", _dark: "#4b5563" },
-                        }}
+                        _active={{ transform: "scale(0.95)" }}
+                        transition="all 0.15s ease"
                         aria-label="Copy message"
                       >
                         <Clipboard.Indicator
@@ -237,31 +224,15 @@ const AIResponse = ({ msg, idx }: Props) => {
                       </IconButton>
                     </Clipboard.Trigger>
                   </Clipboard.Root>
-
-                  <IconButton
-                    {...actionButton}
-                    size="sm"
-                    variant="ghost"
-                    bg="transparent"
-                    color={{ base: "brand.700", _dark: "brand.600" }}
-                    onClick={handleRetry}
-                    aria-label="Retry message"
-                  >
-                    <RepeatIcon size={16} />
-                  </IconButton>
-                </HStack>
-              )}
-            </Box>
-
-            {!isCurrentlyStreaming && msg.sources && (
-              <SourcesDisplay sources={msg.sources} />
+                </Tooltip>
+              </HStack>
             )}
           </Box>
-        ) : (
-          <Flex justify="center" p={4}>
-            <Spinner color="app.button.primary" size="lg" />
-          </Flex>
-        )}
+
+          {!isCurrentlyStreaming && msg.sources && (
+            <SourcesDisplay sources={msg.sources} />
+          )}
+        </Box>
       </Box>
     </Flex>
   );

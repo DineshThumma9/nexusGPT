@@ -1,5 +1,5 @@
-import { Box, Flex, VStack } from "@chakra-ui/react";
-import { useEffect, useRef } from "react";
+import { Box, Flex, VStack, Button, Portal } from "@chakra-ui/react";
+import { useEffect, useRef, useState } from "react";
 import useSessionStore from "../store/sessionStore.ts";
 import { useQuery } from "@tanstack/react-query";
 import { getKbStatus, getMockKbStatus } from "../api/rag-api.ts";
@@ -58,6 +58,8 @@ export const RagStatusMessage = () => {
   } = useSessionStore();
   const { streamMessage } = useMessage();
   const hasTriggeredReady = useRef(false);
+  const [showGitSuccess, setShowGitSuccess] = useState(false);
+  const { current_session, sessions } = useSessionStore();
 
   const { data, isSuccess, isError, error } = useQuery({
     queryKey: ["status", kb_id],
@@ -70,18 +72,33 @@ export const RagStatusMessage = () => {
   });
 
   useEffect(() => {
+    if (!isWaitingForIndexing) return;
+
     if (isSuccess && data?.status) {
       const statusLower = data.status.toLowerCase();
 
       if (statusLower === "ready" && !hasTriggeredReady.current) {
         hasTriggeredReady.current = true;
-        setTimeout(() => {
-          setIsWaitingForIndexing(false);
-          if (pendingMessage) {
-            streamMessage(pendingMessage);
-            setPendingMessage(null);
-          }
-        }, 1500);
+
+        const isGit =
+          useSessionStore
+            .getState()
+            .sessions.find(
+              (s) =>
+                s.session_id === useSessionStore.getState().current_session,
+            )?.source_type === "github";
+
+        if (isGit) {
+          setShowGitSuccess(true);
+        } else {
+          setTimeout(() => {
+            setIsWaitingForIndexing(false);
+            if (pendingMessage) {
+              streamMessage(pendingMessage);
+              setPendingMessage(null);
+            }
+          }, 1500);
+        }
       } else if (statusLower === "failed" || statusLower === "error") {
         setIsWaitingForIndexing(false);
         setPendingMessage(null);
@@ -111,7 +128,76 @@ export const RagStatusMessage = () => {
     // intentionally omitted unstable refs like streamMessage
   ]);
 
-  if (!isWaitingForIndexing) return null;
+  if (!isWaitingForIndexing && !showGitSuccess) return null;
+
+  if (showGitSuccess) {
+    const session = sessions.find((s) => s.session_id === current_session);
+    const repoName = session?.title?.replace(" Repo", "") || "Repository";
+
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+          style={{ width: "100%", marginTop: "1rem", marginBottom: "1rem" }}
+        >
+          <Flex justify="flex-start" w="100%">
+            <Box
+              w="full"
+              bg="bg.panel"
+              p={6}
+              borderRadius="3xl"
+              border="1px solid"
+              borderColor="border.subtle"
+              maxW="3xl"
+              boxShadow="sm"
+            >
+              <Flex
+                align={{ base: "flex-start", md: "center" }}
+                gap={4}
+                justify="space-between"
+                direction={{ base: "column", md: "row" }}
+              >
+                <Flex align="center" gap={4}>
+                  <CheckCircle size={32} color="#10B981" />
+                  <VStack align="flex-start" gap={1}>
+                    <Box fontSize="lg" fontWeight="semibold" color="fg">
+                      Ready for query
+                    </Box>
+                    <Box fontSize="sm" color="fg.muted">
+                      Your Repo {repoName} is indexed and ready!
+                    </Box>
+                  </VStack>
+                </Flex>
+                <Button
+                  bg="brand.600"
+                  color="white"
+                  size="md"
+                  px={8}
+                  borderRadius="xl"
+                  _hover={{ bg: "brand.700", transform: "translateY(-1px)" }}
+                  _active={{ transform: "translateY(0)" }}
+                  transition="all 0.2s ease"
+                  onClick={() => {
+                    setShowGitSuccess(false);
+                    setIsWaitingForIndexing(false);
+                    if (pendingMessage) {
+                      streamMessage(pendingMessage);
+                      setPendingMessage(null);
+                    }
+                  }}
+                >
+                  Continue
+                </Button>
+              </Flex>
+            </Box>
+          </Flex>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
   const currentStatus = data?.status || "Initializing";
   const currentDetail = data?.detail || "Setting up ingestion pipeline...";

@@ -73,14 +73,11 @@ class KnowledgeBase(SQLModel, table=True):
     kb_id: UUID = Field(primary_key=True)
     user_id: UUID = Field(foreign_key="users.userid", index=True)
     source_type: KBSourceType
-    # For GitHub: "owner/repo@branch" or "owner/repo@sha"
-    # For PDF/URL: filename or URL string
     source_ref: str
     status: KBStatus = Field(default=KBStatus.PENDING)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     indexed_at: Optional[datetime] = None
 
-    # The commit SHA of what's indexed — used for cache invalidation
     source_sha: Optional[str] = None
 
 

@@ -1,23 +1,22 @@
-import asyncio
+import concurrent
 import os
+import subprocess
+import tempfile
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Dict, List, Optional
-from uuid import UUID
+from time import time
+from typing import Dict, List
 
 from dotenv import load_dotenv
-from langchain_community.document_loaders import GithubFileLoader, PyPDFLoader
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langsmith import traceable
+from loguru import logger
+from qdrant_client.models import PointStruct
+from tenacity import retry, stop_after_attempt, wait_exponential
 from tree_sitter_language_pack import ProcessConfig, detect_language_from_path, process
 
-from src.db.dbs import get_db
 from src.db.neo4j import get_graph
 from src.db.qdrant_client import vector_db
-from src.db.redis_client import queue, redis
-from src.models.enums import KBStatus
-from src.models.models import KnowledgeBase
 from src.models.schema import GitRequest, ProjectNode
 from src.service.utils import (
     _extract_chunks,
@@ -30,9 +29,6 @@ load_dotenv()
 
 async def fetch_repo(req: GitRequest) -> List[Document]:
     """Fetches the files of a Github repository by cloning it locally."""
-    import os
-    import subprocess
-    import tempfile
 
     include_ext = req.file_extension_include
     exclude_ext = req.file_extension_exclude
@@ -252,18 +248,6 @@ def build_relation_and_index(enriched_docs: Dict[str, ProjectNode]):
     )
 
 
-import logging
-from time import time
-
-from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
-
-logger = logging.getLogger(__name__)
-
-import uuid
-
-from qdrant_client.models import PointStruct
-
-
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
 def _insert_to_vectordb(kb_id, ast_docs):
     ns = str(kb_id)
@@ -276,23 +260,17 @@ def _insert_to_vectordb(kb_id, ast_docs):
 
     start = time()
     start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # 1. Extract data from LangChain Documents
     texts = [doc.page_content for doc in ast_docs]
     metadatas = [{**doc.metadata, "kb_id": ns} for doc in ast_docs]
 
-    # 2. Get embeddings in one massive batch (bypassing LangChain's 64-chunk limit)
-    # Note: If your Git ingestion uses hybrid search (Sparse + Dense) like your PDF ingestion,
-    # generate your sparse vectors here too and format the vector={} dictionary accordingly.
     dense_vectors = vector_db.embeddings.embed_documents(texts)
 
-    # 3. Build native Qdrant points with LangChain's exact payload schema
     points = []
     for i in range(len(texts)):
         points.append(
             PointStruct(
                 id=str(uuid.uuid4()),
                 vector=dense_vectors[i],
-                # LangChain retrieval tools strictly look for these two keys:
                 payload={"page_content": texts[i], "metadata": metadatas[i]},
             )
         )
@@ -303,7 +281,7 @@ def _insert_to_vectordb(kb_id, ast_docs):
         f"Going to start uplodation parsing done {end - start} started at :{start_time}"
     )
 
-    print(f"Native upload to Qdrant (wait=False)...")
+    print("Native upload to Qdrant (wait=False)...")
 
     start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # 4. Fire-and-forget native upload
@@ -425,12 +403,6 @@ def _insert_to_graphdb(
     )
 
 
-import concurrent
-import logging
-
-logger = logging.getLogger()
-
-
 def insert_to_databases(
     kb_id: str,
     batch_directories,
@@ -446,10 +418,7 @@ def insert_to_databases(
     If Neo4j fails, Qdrant insertion is rolled back.
     """
     ns = str(kb_id)
-    graph = get_graph(force_reconnect=True)
-    driver = graph._driver
-
-    from concurrent.futures import ThreadPoolExecutor
+    get_graph(force_reconnect=True)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         vectordb_task = executor.submit(_insert_to_vectordb, ns, ast_docs)
@@ -476,12 +445,7 @@ def insert_to_databases(
             except Exception as e:
                 logger.info(f"Critical Error e :{e}")
                 error_to_raise = e
-                # We can't actually kill a running Python thread, so we just
-                # let it finish running and we'll rollback after.
 
-    # OUTSIDE the `with ThreadPoolExecutor` block:
-    # At this point, the thread pool has been safely shutdown and both threads
-    # are guaranteed to have stopped executing. We can now safely run the rollback!
     if error_to_raise:
         if ast_docs:
             print("Rolling back Qdrant insertion...")
@@ -503,7 +467,6 @@ def insert_to_databases(
             except Exception as qd_err:
                 print(f"DANGER: Failed to clear Qdrant records: {qd_err}")
 
-        # Guarantee the error bubbles up to Celery so it triggers the task failure sequence.
         raise error_to_raise
 
 

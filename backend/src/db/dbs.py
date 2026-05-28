@@ -1,26 +1,23 @@
-import logging
 import os
 from typing import Generator
 
 from dotenv import load_dotenv
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from loguru import logger
 from psycopg_pool import AsyncConnectionPool
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
-# Import models to register them with SQLModel.metadata
 from src.models.models import Session
 
 _pool: AsyncConnectionPool | None = None
 _checkpointer: AsyncPostgresSaver | None = None
 
 
-logger = logging.getLogger("database")
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Lazy initialization - connect only when needed
 engine = None
 SessionLocal = None
 _connection_failed = False
@@ -64,7 +61,7 @@ def get_db() -> Generator[Session, None, None]:
         logger.debug("Database session created")
         yield db
     except Exception as e:
-        logger.error(f"Database error: {str(e)}")
+        logger.error(f"Database error: {e}")
         raise
     finally:
         logger.debug("Database session closed")

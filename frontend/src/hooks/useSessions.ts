@@ -1,4 +1,3 @@
-import type Session from "../entities/Session.ts";
 import sessionStore from "../store/sessionStore.ts";
 
 import { useEffect, useRef } from "react";
@@ -9,8 +8,8 @@ import {
   newSession,
   updateSessionTitle,
 } from "../api/session-api.ts";
-import { z } from "zod/v4";
 import { v4 as uuidv4 } from "uuid";
+import type { Session } from "../entities/Session.ts";
 
 const useSessions = () => {
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -18,6 +17,7 @@ const useSessions = () => {
   const store = sessionStore.getState();
   const {
     setSessions,
+    appendSessions,
     removeSession,
     addSession,
     clear,
@@ -29,6 +29,8 @@ const useSessions = () => {
     setLoading,
     setContext,
     setKbId,
+    setSessionPagination,
+    setFetchingMore,
   } = store;
 
   useEffect(() => {
@@ -93,9 +95,10 @@ const useSessions = () => {
   const getHistory = async (session_id: string) => {
     try {
       setLoading(true);
-      const history = await getChatHistory({ session_id });
+      const response = await getChatHistory({ session_id });
       setCurrentSessionId(session_id);
-      setMessages(history);
+      const messages = response?.messages ?? response;
+      setMessages(messages);
 
       const currentState = sessionStore.getState();
       const session = currentState.sessions.find(
@@ -158,12 +161,19 @@ const useSessions = () => {
     }
   };
 
+  const SESSIONS_PAGE_SIZE = 20;
+
   const getSessions = async () => {
     try {
       setLoading(true);
-      type Session = z.infer<typeof Session>;
-      const allSessions: Session[] = await getAllSessions();
+      // First page — no cursor
+      const response = await getAllSessions(undefined, SESSIONS_PAGE_SIZE);
+      const allSessions: Session[] = response?.sessions ?? response;
+      const hasMore: boolean = response?.has_more ?? false;
+      const nextCursor: string | null = response?.next_cursor ?? null;
+
       setSessions(allSessions);
+      setSessionPagination(nextCursor, hasMore);
 
       const currentState = sessionStore.getState();
       if (!currentState.current_session && allSessions.length > 0) {
@@ -179,6 +189,30 @@ const useSessions = () => {
       setSessions([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreSessions = async () => {
+    const state = sessionStore.getState();
+    if (state.isFetchingMore || !state.sessionHasMore) return;
+
+    try {
+      setFetchingMore(true);
+      // Pass the stored cursor for next page
+      const response = await getAllSessions(
+        state.sessionNextCursor ?? undefined,
+        SESSIONS_PAGE_SIZE,
+      );
+      const newSessions: Session[] = response?.sessions ?? response;
+      const hasMore: boolean = response?.has_more ?? false;
+      const nextCursor: string | null = response?.next_cursor ?? null;
+
+      appendSessions(newSessions);
+      setSessionPagination(nextCursor, hasMore);
+    } catch (e) {
+      console.error("Error loading more sessions", e);
+    } finally {
+      setFetchingMore(false);
     }
   };
 
@@ -209,6 +243,7 @@ const useSessions = () => {
     getHistory,
     deleteSessionById,
     getSessions,
+    loadMoreSessions,
     fetchAllSessions,
     selectSession,
   };

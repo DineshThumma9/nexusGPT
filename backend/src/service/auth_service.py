@@ -76,7 +76,7 @@ def create_tokens(data: dict, db: Session):
     try:
         access_token = jwt.encode(access_payload, SECRET_KEY, algorithm=ALGORITHM)
         refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm=ALGORITHM)
-    except Exception as e:
+    except Exception:
         logger.exception("JWT encoding failed")
         return JSONResponse(
             content={"detail": "Token generation failed"}, status_code=500

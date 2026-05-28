@@ -30,6 +30,7 @@ import type { HighlighterGeneric } from "shiki";
 
 interface Props {
   onClose: () => void;
+  onError?: () => void; // called when background save fails so parent can show red indicator
 }
 
 const shikiAdapter = createShikiAdapter<HighlighterGeneric<any, any>>({
@@ -77,7 +78,7 @@ const textareaStyles = {
   transition: "all 0.2s ease",
 };
 
-export const McpConfigDialog = ({ onClose }: Props) => {
+export const McpConfigDialog = ({ onClose, onError }: Props) => {
   const [rawJson, setRawJson] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -236,6 +237,8 @@ export const McpConfigDialog = ({ onClose }: Props) => {
           errorMsg = String(error.response.data.detail);
         }
       }
+      // Signal parent to show red border on the MCP icon
+      onError?.();
       toaster.create({
         title: "Save Failed",
         description: errorMsg,

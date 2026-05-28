@@ -35,7 +35,6 @@ def register(user: UserPayload, db: Session = Depends(get_db)):
     hash_password = hashlib.sha256(user.password.encode()).hexdigest()
     salt = bcrypt.gensalt()
 
-    # ADDED .decode('utf-8') HERE to store it as a clean string in DB
     hashed_password = bcrypt.hashpw(hash_password.encode("utf-8"), salt).decode("utf-8")
 
     new_user = User(username=user.username, email=user.email, hpassword=hashed_password)
@@ -56,7 +55,6 @@ def register(user: UserPayload, db: Session = Depends(get_db)):
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ):
-    # This works perfectly now because user.hpassword is saved as a clean string
     user = db.query(User).filter(User.username == form_data.username).first()
 
     hash_password = hashlib.sha256(form_data.password.encode("utf-8")).hexdigest()

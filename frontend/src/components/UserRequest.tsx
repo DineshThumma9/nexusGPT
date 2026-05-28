@@ -110,21 +110,21 @@ const UserRequest = ({ msg }: Props) => {
           <Clipboard.Trigger asChild>
             <IconButton
               size="xs"
-              variant="outline"
-              color={{ base: "#374151", _dark: "#d1d5db" }}
-              borderColor={{ base: "#d1d5db", _dark: "#6b7280" }}
-              bg={{ base: "white", _dark: "#1f2937" }}
+              variant="ghost"
+              bg="transparent"
+              px={2}
+              py={1}
+              color={{ base: "brand.700", _dark: "brand.600" }}
               _hover={{
-                bg: { base: "#f3f4f6", _dark: "#374151" },
-                borderColor: { base: "#9ca3af", _dark: "#9ca3af" },
-                color: { base: "#111827", _dark: "#f9fafb" },
+                bg: "transparent",
+                color: { base: "brand.800", _dark: "brand.500" },
+                transform: "scale(1.1)",
               }}
-              _active={{
-                bg: { base: "#e5e7eb", _dark: "#4b5563" },
-              }}
+              _active={{ transform: "scale(0.95)" }}
+              transition="all 0.15s ease"
               aria-label="Copy message"
             >
-              <Clipboard.Indicator copied={<LuCheck color="#22c55e" />}>
+              <Clipboard.Indicator copied={<LuCheck color="green" />}>
                 <LuCopy />
               </Clipboard.Indicator>
             </IconButton>

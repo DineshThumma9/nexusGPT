@@ -1,117 +1,45 @@
 import json
-from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from langchain_core.messages.ai import AIMessageChunk
 from loguru import logger
 
-from src.db.dbs import get_checkpointer, get_db
-from src.db.neo4j import get_graph
-from src.db.qdrant_client import get_user_vector_db
-from src.db.redis_client import redis_client
+from src.db.dbs import get_db
 from src.models.enums import SenderRole
-from src.models.models import KnowledgeBase, Message, Session
 from src.models.schema import MessageRequest
 from src.router.auth import get_current_user
-from src.service.set_up_service import build_agent, get_llm_instance
-from src.service.tools import make_tools
+from src.router.limiter import limiter
+from src.service.db_service import add_message
+from src.service.setup_service import setup_agent_for_session
 
 router = APIRouter()
 
 
 @router.post("/simple-stream")
+@limiter.limit("20/minute")
 async def message_stream(
     request: Request,
     body: MessageRequest = Body(...),
     db=Depends(get_db),
     user=Depends(get_current_user),
 ):
-    # 1. Look up the session → get kb_id (may be None for vanilla)
-    session = db.query(Session).filter_by(session_id=body.session_id).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if str(session.user_id) != str(user.userid):
-        raise HTTPException(status_code=403, detail="Forbidden")
+    agent = await setup_agent_for_session(db, body.session_id, user, body.msg)
 
-    kb_id: str | None = session.kb_id  # None = no RAG context attached
-    source_type = None
-
-    vector_db = None
-    ns = None
-    graph_obj_instance = None
-
-    from src.service.tasks import session_title_gen
-
-    if session.title == "New Chat":
-        session_title_gen.delay(body.msg, str(body.session_id), str(user.userid))
-
-    # 2. Extract RAG context if kb_id is present
-    if kb_id is not None:
-        kb = db.query(KnowledgeBase).filter_by(kb_id=kb_id).first()
-        if kb:
-            # Prevent querying a Knowledge Base that is still indexing
-            kb_status = (
-                kb.status.value if hasattr(kb.status, "value") else str(kb.status)
-            )
-            if kb_status.lower() != "ready":
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Knowledge Base is currently {kb_status.lower()}. Please wait until processing is complete.",
-                )
-
-            source_type = (
-                kb.source_type.value
-                if hasattr(kb.source_type, "value")
-                else str(kb.source_type)
-            )
-        ns = str(kb_id)  # str(UUID) is the universal namespace key
-        vector_db = get_user_vector_db(
-            ns, source_type=source_type
-        )  # Qdrant filter: payload.kb_id == ns
-        graph_obj_instance = get_graph()
-
-    # Always provide tools! The tools will handle missing context gracefully.
-    tools = await make_tools(
-        user_id=user.userid,
-        vector_db=vector_db,
-        neo4j_ns=ns,
-        graph_obj=graph_obj_instance,
-    )
-
-    # 3. LLM from user's configured provider/model
-    llm = get_llm_instance(db=db, user=user)
-
-    # 4. Compile agent — tools are per-request (correct), checkpointer is global singleton
-    checkpointer = get_checkpointer()
-    agent = build_agent(
-        llm=llm,
-        tools=tools,
-        checkpointer=checkpointer,
-        source_type=source_type if kb_id else None,
-        source_ref=kb.source_ref if (kb_id and kb) else None,
-    )
-
-    # 5. thread_id = session_id UUID — this is LangGraph's conversation memory key
-    config = {"configurable": {"thread_id": str(body.session_id)}}
+    config = {
+        "configurable": {"thread_id": str(body.session_id)},
+        "metadata": {
+            "user_id": str(user.userid),
+            "session_id": str(body.session_id),
+        },
+    }
 
     return StreamingResponse(
         _stream(agent, body.msg, config, request, str(body.session_id), db),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
-
-async def add_message(db, session_id, sender, content):
-    try:
-        message = Message(session_id=UUID(session_id), sender=sender, content=content)
-        db.add(message)
-        db.commit()
-        await redis_client.delete(f"sessions:{session_id}")
-    except Exception as e:
-        logger.error(f"Failed to save message: {e}")
-        db.rollback()
 
 
 async def _stream(
@@ -134,6 +62,7 @@ async def _stream(
                 if isinstance(msg_chunk, AIMessageChunk) and isinstance(
                     msg_chunk.content, str
                 ):
+                    # Only stream output from the main agent, ignoring background middleware/summarizers
                     token = msg_chunk.content
                     full += token
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"

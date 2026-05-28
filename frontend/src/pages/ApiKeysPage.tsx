@@ -31,17 +31,7 @@ import {
   MenuItem,
 } from "../components/ui/menu";
 
-// Available providers from the backend constants
-const AVAILABLE_PROVIDERS = [
-  "GOOGLE GENAI",
-  "ANTHROPIC",
-  "OPENAI",
-  "OLLAMA",
-  "MISTRAL",
-  "GROQ",
-  "OPENROUTER",
-  "HUGGING FACE",
-];
+import { PROVIDERS_CONFIG } from "../entities/Constants";
 
 const ApiKeysPage = () => {
   const navigate = useNavigate();
@@ -54,6 +44,7 @@ const ApiKeysPage = () => {
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
 
   const fetchKeys = async () => {
     try {
@@ -73,6 +64,7 @@ const ApiKeysPage = () => {
 
   const handleSave = async () => {
     if (!selectedProvider) return;
+    setApiKeyError(null);
     try {
       setIsSubmitting(true);
       await setApiProvider(selectedProvider, apiKeyInput);
@@ -81,8 +73,13 @@ const ApiKeysPage = () => {
       setApiKeyInput("");
       setSelectedProvider("");
       setIsEditing(false);
-    } catch (err) {
-      console.error("Failed to save key:", err);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      if (detail?.error_type === "invalid_api_key") {
+        setApiKeyError(detail.message || "Invalid API key");
+      } else {
+        console.error("Failed to save key:", err);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -119,7 +116,15 @@ const ApiKeysPage = () => {
 
   const getUnusedProviders = () => {
     const usedProviders = new Set(keys.map((k) => k.provider));
-    return AVAILABLE_PROVIDERS.filter((p) => !usedProviders.has(p));
+    return Object.values(PROVIDERS_CONFIG).filter(
+      (p) => !usedProviders.has(p.id),
+    );
+  };
+
+  const getDisplayName = (id: string) => {
+    if (!id) return "";
+    const config = Object.values(PROVIDERS_CONFIG).find((p) => p.id === id);
+    return config ? config.displayName : id.toUpperCase();
   };
 
   // Mask the API key for display
@@ -226,7 +231,7 @@ const ApiKeysPage = () => {
                               color="brand.600"
                               letterSpacing="wider"
                             >
-                              {config.provider}
+                              {getDisplayName(config.provider)}
                             </Box>
                             <HStack gap={1}>
                               <IconButton
@@ -331,7 +336,7 @@ const ApiKeysPage = () => {
                     >
                       Editing API key for{" "}
                       <Box as="span" fontWeight="bold">
-                        {selectedProvider}
+                        {getDisplayName(selectedProvider)}
                       </Box>
                     </Box>
                   ) : (
@@ -363,7 +368,8 @@ const ApiKeysPage = () => {
                             _hover={{ borderColor: "brand.500" }}
                             _active={{ borderColor: "brand.500" }}
                           >
-                            {selectedProvider || "Select a provider"}
+                            {getDisplayName(selectedProvider) ||
+                              "Select a provider"}
                             <BiChevronDown />
                           </Button>
                         </MenuTrigger>
@@ -377,16 +383,16 @@ const ApiKeysPage = () => {
                         >
                           {getUnusedProviders().map((p) => (
                             <MenuItem
-                              key={p}
-                              value={p}
-                              onClick={() => setSelectedProvider(p)}
+                              key={p.id}
+                              value={p.id}
+                              onClick={() => setSelectedProvider(p.id)}
                               px={4}
                               py={3}
                               cursor="pointer"
                               transition="all 0.2s"
                               _hover={{ bg: "bg.subtle", color: "brand.600" }}
                             >
-                              {p}
+                              {p.displayName}
                             </MenuItem>
                           ))}
                         </MenuContent>
@@ -406,20 +412,43 @@ const ApiKeysPage = () => {
                     <Input
                       placeholder="sk-..."
                       value={apiKeyInput}
-                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      onChange={(e) => {
+                        setApiKeyInput(e.target.value);
+                        if (apiKeyError) setApiKeyError(null); // clear on edit
+                      }}
                       type="password"
                       bg="bg.muted"
                       borderRadius="12px"
                       border="1px solid"
-                      borderColor="border.default"
+                      borderColor={apiKeyError ? "red.500" : "border.default"}
+                      boxShadow={
+                        apiKeyError
+                          ? "0 0 0 1px var(--chakra-colors-red-500)"
+                          : undefined
+                      }
                       py={6}
                       px={4}
                       fontSize="sm"
                       _focus={{
-                        borderColor: "brand.500",
-                        boxShadow: "0 0 0 1px token(colors.brand.500)",
+                        borderColor: apiKeyError ? "red.500" : "brand.500",
+                        boxShadow: apiKeyError
+                          ? "0 0 0 1px token(colors.red.500)"
+                          : "0 0 0 1px token(colors.brand.500)",
                       }}
                     />
+                    {apiKeyError && (
+                      <Box
+                        mt={1.5}
+                        fontSize="xs"
+                        color="red.500"
+                        fontWeight="medium"
+                        display="flex"
+                        alignItems="center"
+                        gap={1}
+                      >
+                        ⚠ {apiKeyError}
+                      </Box>
+                    )}
                   </Box>
 
                   <HStack gap={3} pt={2}>

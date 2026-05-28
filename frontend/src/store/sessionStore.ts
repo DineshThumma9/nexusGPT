@@ -19,6 +19,10 @@ export type SessionState = {
   shouldStream: boolean;
   context: "code" | "notes" | "vanilla";
   kb_id: string | null;
+  // Pagination state
+  sessionNextCursor: string | null;
+  sessionHasMore: boolean;
+  isFetchingMore: boolean;
 
   setCurrentSessionId: (session: string | null) => void;
   setMessages: (messages: Message[]) => void;
@@ -26,6 +30,7 @@ export type SessionState = {
   setTitle: (title: string) => void;
   updateMessage: (messageId: string, updates: Partial<Message>) => void;
   setSessions: (sessions: Session[]) => void;
+  appendSessions: (sessions: Session[]) => void;
   addFiles: (file: File) => void;
   removeFile: (index: number) => void;
   addSession: (session: Session) => void;
@@ -38,6 +43,8 @@ export type SessionState = {
   setIndexingState: (status: string, detail: string) => void;
   setPendingMessage: (message: string | null) => void;
   setShouldStream: (streaming: boolean) => void;
+  setSessionPagination: (nextCursor: string | null, hasMore: boolean) => void;
+  setFetchingMore: (fetching: boolean) => void;
   clear: () => void;
   clearFiles: () => void;
   clearFileInput: () => void;
@@ -77,6 +84,9 @@ const useSessionStore = create<SessionState>()(
       pendingMessage: null,
       context: "vanilla",
       kb_id: null,
+      sessionNextCursor: null,
+      sessionHasMore: true,
+      isFetchingMore: false,
 
       setCurrentSessionId: (session) =>
         set({
@@ -89,7 +99,16 @@ const useSessionStore = create<SessionState>()(
         }),
       setMessages: (messages) => set({ messages }),
       addMessage: (message) =>
-        set((state) => ({ messages: [...state.messages, message] })),
+        set((state) => {
+          const now = new Date().toISOString();
+          const updatedSessions = state.sessions.map((s) =>
+            s.session_id === message.session_id ? { ...s, updated_at: now } : s,
+          );
+          return {
+            messages: [...state.messages, message],
+            sessions: updatedSessions,
+          };
+        }),
       setTitle: (title) => set({ title }),
       setSending: (sending: boolean) => set({ sending: sending }),
 
@@ -153,14 +172,29 @@ const useSessionStore = create<SessionState>()(
       setKbId: (kb_id: string) => set({ kb_id: kb_id }),
 
       setSessions: (sessions) => {
-        const sorted = [...sessions].sort((a, b) =>
-          a.created_at && b.created_at
-            ? new Date(b.created_at).getTime() -
-              new Date(a.created_at).getTime()
-            : 0,
-        );
+        const sorted = [...sessions].sort((a, b) => {
+          const dateA = a.updated_at || a.created_at;
+          const dateB = b.updated_at || b.created_at;
+          return dateA && dateB
+            ? new Date(dateB).getTime() - new Date(dateA).getTime()
+            : 0;
+        });
         set({ sessions: sorted });
       },
+
+      appendSessions: (newSessions) =>
+        set((state) => {
+          const existingIds = new Set(state.sessions.map((s) => s.session_id));
+          const unique = newSessions.filter(
+            (s) => !existingIds.has(s.session_id),
+          );
+          return { sessions: [...state.sessions, ...unique] };
+        }),
+
+      setSessionPagination: (nextCursor, hasMore) =>
+        set({ sessionNextCursor: nextCursor, sessionHasMore: hasMore }),
+
+      setFetchingMore: (fetching) => set({ isFetchingMore: fetching }),
 
       clearAllSessions: () =>
         set({

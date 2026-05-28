@@ -1,24 +1,31 @@
 // src/components/SideBar.tsx
-import { Box, Button, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SideBarNav from "./SideBarNav";
 import SessionComponent from "./SessionComponent";
 import useSessions from "../hooks/useSessions.ts";
 import sessionStore from "../store/sessionStore";
+
 interface SidebarProps {
   onCollapse?: (collapsed: boolean) => void;
 }
 
 export default function Sidebar({ onCollapse }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
-  // ✅ Directly use Zustand selectors
+
   const sessions = sessionStore((s) => s.sessions);
   const currentSession = sessionStore((s) => s.current_session);
   const isLoading = sessionStore((s) => s.isLoading);
+  const sessionHasMore = sessionStore((s) => s.sessionHasMore);
+  const isFetchingMore = sessionStore((s) => s.isFetchingMore);
+  const sessionNextCursor = sessionStore((s) => s.sessionNextCursor);
 
-  const { getSessions, selectSession } = useSessions();
+  const { getSessions, selectSession, loadMoreSessions } = useSessions();
+
+  // Sentinel ref for IntersectionObserver
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const boxStyles = {
     transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -72,9 +79,27 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
     onCollapse?.(newCollapsed);
   };
 
+  // Initial load
   useEffect(() => {
-    getSessions(); // ✅ Only run once on mount
+    getSessions();
   }, []);
+
+  // Infinite scroll: watch the sentinel
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && sessionHasMore && !isFetchingMore) {
+          loadMoreSessions();
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [sessionHasMore, isFetchingMore, loadMoreSessions]);
 
   const handleSessionSelect = async (sessionId: string) => {
     try {
@@ -87,10 +112,11 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
   const renderSessions = () => {
     const sortedSessions = sessions
       .filter((s) => s.session_id !== currentSession)
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
+      .sort((a, b) => {
+        const dateA = a.updated_at || a.created_at;
+        const dateB = b.updated_at || b.created_at;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
 
     const current = sessions.find((s) => s.session_id === currentSession);
     const allSessions = current ? [current, ...sortedSessions] : sortedSessions;
@@ -104,7 +130,11 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
           key={sessionId}
           initial={{ opacity: 0, x: -10, scale: 0.98 }}
           animate={{ opacity: 1, x: 0, scale: 1 }}
-          transition={{ duration: 0.3, ease: "easeOut", delay: index * 0.04 }}
+          transition={{
+            duration: 0.3,
+            ease: "easeOut",
+            delay: Math.min(index * 0.04, 0.4),
+          }}
         >
           <Stack
             {...sessionStackStyles}
@@ -187,6 +217,25 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
                 )}
 
                 {renderSessions()}
+
+                {/* Infinite scroll sentinel */}
+                <Box ref={sentinelRef} py={1}>
+                  {isFetchingMore && (
+                    <Box display="flex" justifyContent="center" py={2}>
+                      <Spinner size="sm" color="brand.500" />
+                    </Box>
+                  )}
+                  {!sessionHasMore && sessions.length > 0 && (
+                    <Text
+                      fontSize="xs"
+                      color="fg.subtle"
+                      textAlign="center"
+                      py={2}
+                    >
+                      All sessions loaded
+                    </Text>
+                  )}
+                </Box>
               </VStack>
             </motion.div>
           )}

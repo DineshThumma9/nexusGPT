@@ -1,8 +1,12 @@
+import base64
 import dataclasses
 import json
+import os
+from datetime import datetime
 from typing import Any
 
 import loguru as logger
+from cryptography.fernet import Fernet
 
 
 def _unpack_compiled_object(items, raw_source: bytes = None):
@@ -78,7 +82,7 @@ def _clean_metadata(metadata: dict):
         else:
             try:
                 cleaned[key] = json.dumps(str(val))
-            except:
+            except Exception:
                 cleaned[key] = str(val)
 
     return cleaned
@@ -148,3 +152,39 @@ def _extract_structure(structures):
             structures_list.extend(_extract_structure(childs))
 
     return structures_list
+
+
+def encode_cursor(created_at: datetime, id: str) -> str:
+    """Encode a (created_at, id) pair into an opaque base64 cursor string."""
+    try:
+        payload = {"created_at": created_at.isoformat(), "id": str(id)}
+        return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+    except Exception as e:
+        logger.warning(f"encode_cursor failed: {e}")
+        return ""
+
+
+def decode_cursor(cursor: str):
+    """Decode a base64 cursor string back into (created_at datetime, id str)."""
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
+        return datetime.fromisoformat(payload["created_at"]), payload["id"]
+    except Exception as e:
+        logger.warning(f"decode_cursor failed: {e}")
+        return None, None
+
+
+fernet_key = os.getenv("FERNET_KEY")
+fernet = Fernet(fernet_key) if fernet_key else None
+
+
+def encrypt(key: str) -> str:
+    if not fernet:
+        raise ValueError("FERNET_KEY environment variable is not set")
+    return fernet.encrypt(key.encode()).decode()
+
+
+def decrypt(key: str) -> str:
+    if not fernet:
+        raise ValueError("FERNET_KEY environment variable is not set")
+    return fernet.decrypt(key.encode()).decode()

@@ -22,6 +22,3 @@ def get_graph(force_reconnect=False):
             },
         )
     return _graph
-
-
-# graph_chain can be initialized dynamically when an LLM is available

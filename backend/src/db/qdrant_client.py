@@ -1,33 +1,26 @@
-import logging
 import os
 
 from dotenv import load_dotenv
-from langchain_community.embeddings import FastEmbedEmbeddings, JinaEmbeddings
 from langchain_nomic import NomicEmbeddings
 from langchain_qdrant import QdrantVectorStore, RetrievalMode
 from langchain_voyageai import VoyageAIEmbeddings
+from loguru import logger
 from qdrant_client import AsyncQdrantClient, QdrantClient, models
 from qdrant_client.models import (
-    Distance,
     FieldCondition,
     Filter,
     MatchValue,
-    PayloadSchemaType,
-    VectorParams,
 )
 
 load_dotenv()
 
-logger = logging.getLogger("qdrant_client")
 
 _client: AsyncQdrantClient | None = None
 _sync_client: QdrantClient | None = None
 
-COLLECTION_CODE = "centralGPT_code"  # all code chunks, all users
-COLLECTION = (
-    "centralGPT"  # all doc/pdf chunks, all users       # alias for compatibility
-)
-VECTOR_DIM = 768  # depends on your embed model
+COLLECTION_CODE = "centralGPT_code"
+COLLECTION = "centralGPT"
+VECTOR_DIM = 768
 
 _dense_embeddings = None
 _sparse_embeddings = None
@@ -35,7 +28,6 @@ _code_embeddings = None
 
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(_CURRENT_DIR))
-FASTEMBED_CACHE_DIR = os.path.join(_PROJECT_ROOT, "storage", "fastembed_cache")
 
 
 def get_embeddings():
@@ -74,7 +66,6 @@ def _setup_collections(client: QdrantClient):
                     vectors_config=models.VectorParams(
                         size=VECTOR_DIM, distance=models.Distance.COSINE
                     ),
-                    # Sparse vectors removed: using dense-only (Nomic) retrieval
                 )
             else:
                 client.create_collection(
@@ -115,7 +106,6 @@ def _get_sync_client() -> QdrantClient:
     return _sync_client
 
 
-# Lazy wrapper to act as the global vector_db for ingestion
 class LazyVectorDB:
     def __getattr__(self, name):
         store = QdrantVectorStore(

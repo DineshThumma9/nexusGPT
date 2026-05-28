@@ -1,4 +1,5 @@
 import { HStack, IconButton } from "@chakra-ui/react";
+import { Tooltip } from "./ui/tooltip";
 import { Constants } from "../entities/Constants.ts";
 import {
   apiKeySelection,
@@ -11,6 +12,7 @@ import useInitStore from "../store/initStore.ts";
 import APIKey from "./API-Key.tsx";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
+import { PROVIDERS_CONFIG, type ProviderID } from "../entities/Constants.ts";
 
 const hstack = {
   gap: 3,
@@ -38,15 +40,6 @@ const flattenArray = (val: any): string[] => {
   return [];
 };
 
-const normalizeProviderKey = (key: string): string => {
-  const k = key.toLowerCase().trim();
-  if (k === "gemini" || k === "google_genai" || k === "google genai")
-    return "google genai";
-  if (k === "mistralai" || k === "mistral") return "mistral";
-  if (k === "huggingface" || k === "hugging face") return "hugging face";
-  return k;
-};
-
 const formatTitleCase = (str: string): string => {
   if (!str) return str;
   return str
@@ -70,10 +63,16 @@ const formatModelName = (name: string): string => {
 };
 
 const LLMModelChooser = () => {
-  const { providers_models, modelsProviders, providers_dic } = useMemo(
+  const { providers_models, providers_dic, llms } = useMemo(
     () => Constants(),
     [],
   );
+
+  const formatProviderID = (id: string) => {
+    return (
+      PROVIDERS_CONFIG[id as ProviderID]?.displayName || formatTitleCase(id)
+    );
+  };
 
   const {
     setCurrentLLMProvider,
@@ -110,7 +109,7 @@ const LLMModelChooser = () => {
       const data = await getApiModels();
       const normalized: Record<string, string[]> = {};
       Object.entries(data).forEach(([key, val]) => {
-        const normalizedKey = normalizeProviderKey(key);
+        const normalizedKey = key as ProviderID;
         const flatModels = flattenArray(val);
         if (flatModels.length > 0) {
           normalized[normalizedKey] = flatModels;
@@ -246,9 +245,10 @@ const LLMModelChooser = () => {
     <HStack {...hstack}>
       <MenuHelper
         title={"API Provider"}
-        options={modelsProviders}
+        options={llms}
         selected={currentAPIProvider}
         onSelect={handleAPIProviderKeySelection}
+        formatOption={formatProviderID}
       />
 
       <MenuHelper
@@ -257,7 +257,7 @@ const LLMModelChooser = () => {
         selected={currentLLMProvider}
         onSelect={handleProviderSelection}
         onDoubleClick={handleProviderDoubleClick}
-        formatOption={formatTitleCase}
+        formatOption={formatProviderID}
       />
 
       <MenuHelper
@@ -272,29 +272,39 @@ const LLMModelChooser = () => {
 
       <APIKey provider={currentAPIProvider} title={"API KEY"} />
 
-      <IconButton
-        aria-label="Refresh models"
-        variant="ghost"
-        onClick={handleManualRefresh}
-        disabled={refreshing}
-        css={{
-          borderRadius: "xl",
-          color: "fg.muted",
-          minW: "40px",
-          h: "40px",
-          _hover: { bg: "whiteAlpha.100", color: "fg" },
-          _active: { bg: "whiteAlpha.200" },
-          "& svg": {
-            animation: refreshing ? "spin 1s linear infinite" : "none",
-          },
-          "@keyframes spin": {
-            "0%": { transform: "rotate(0deg)" },
-            "100%": { transform: "rotate(360deg)" },
-          },
-        }}
+      <Tooltip
+        content={
+          refreshing
+            ? "Fetching models..."
+            : "Refresh available models from your API keys"
+        }
+        positioning={{ placement: "top" }}
+        openDelay={400}
       >
-        <RefreshCw size={16} />
-      </IconButton>
+        <IconButton
+          aria-label="Refresh models"
+          variant="ghost"
+          onClick={handleManualRefresh}
+          disabled={refreshing}
+          css={{
+            borderRadius: "xl",
+            color: "fg.muted",
+            minW: "40px",
+            h: "40px",
+            _hover: { bg: "whiteAlpha.100", color: "fg" },
+            _active: { bg: "whiteAlpha.200" },
+            "& svg": {
+              animation: refreshing ? "spin 1s linear infinite" : "none",
+            },
+            "@keyframes spin": {
+              "0%": { transform: "rotate(0deg)" },
+              "100%": { transform: "rotate(360deg)" },
+            },
+          }}
+        >
+          <RefreshCw size={16} />
+        </IconButton>
+      </Tooltip>
     </HStack>
   );
 };

@@ -8,14 +8,6 @@ system_prompt = (
 )
 
 
-rag_prompt = """ 
-
-YOU are smart RAG Model which read content and answer user query you know all filename and dir structure of code and helpful to user
-
-
-
-"""
-
 title_prompt = """Generate a concise, descriptive title (maximum 5 words) for a chat session based on this first message: "{query}"
 
 Rules:

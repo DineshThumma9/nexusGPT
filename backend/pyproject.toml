@@ -61,6 +61,7 @@ dependencies = [
     "langchain-huggingface>=1.2.2",
     "transformers>=4.40.0",
     "sentry-sdk[celery,fastapi]>=2.60.0",
+    "slowapi>=0.1.9",
 ]
 
 [dependency-groups]

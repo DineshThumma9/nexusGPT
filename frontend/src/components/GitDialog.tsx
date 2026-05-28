@@ -17,7 +17,6 @@ import useSessionStore from "../store/sessionStore.ts";
 import { z } from "zod";
 import { gitFilesUpload } from "../api/rag-api.ts";
 
-import SelectOptions from "./Select.tsx";
 import { toaster } from "./ui/toaster.tsx";
 import { RiArrowRightLine } from "react-icons/ri";
 import GitExplorer from "./GitExplorer.tsx";
@@ -142,10 +141,6 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
   const [commit, setCommit] = useState("");
   const [token, setToken] = useState("");
 
-  const [dirInput, setDirInput] = useState("");
-  const [fileExtInput, setFileExtInput] = useState("");
-  const [dirOption, setDirOption] = useState<string[]>([]);
-  const [fileExtOption, setFileExtOption] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [explorer, setExplorer] = useState(false);
   const [files, setFiles] = useState<GitTreeNodeType[]>([]);
@@ -264,26 +259,11 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
     setLoading(true);
 
     try {
-      const parsedDirs = dirInput
-        .split(",")
-        .map((d) => d.trim())
-        .filter(Boolean);
-      const parsedExts = fileExtInput
-        .split(",")
-        .map((e) => e.trim())
-        .filter(Boolean);
-
       const res_body = GitRequestSchema.parse({
         owner: owner.trim(),
         repo: repo.trim(),
         commit: commit.trim() || undefined,
         branch: branch.trim() || "main",
-        dir_include: dirOption[0] === "Include" ? parsedDirs : [],
-        dir_exclude: dirOption[0] === "Exclude" ? parsedDirs : [],
-        file_extension_include:
-          fileExtOption[0] === "Include" ? parsedExts : undefined,
-        file_extension_exclude:
-          fileExtOption[0] === "Exclude" ? parsedExts : undefined,
         files: explorer ? selectedFiles : undefined,
         token: token.trim() || undefined,
       });
@@ -504,53 +484,6 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                         {...inputStyles}
                       />
                     </Field.Root>
-
-                    {/* Directory Filters */}
-                    <VStack gap={4} align="stretch">
-                      <HStack gap={4} align="flex-end">
-                        <Field.Root flex={1}>
-                          <Field.Label
-                            color={"fg"}
-                            fontSize="sm"
-                            fontWeight="medium"
-                          >
-                            Directory Filters (comma-separated)
-                          </Field.Label>
-                          <Input
-                            placeholder="src/, docs/, tests/"
-                            value={dirInput}
-                            onChange={(e) => setDirInput(e.target.value)}
-                            {...inputStyles}
-                          />
-                        </Field.Root>
-                        <SelectOptions
-                          value={dirOption}
-                          setValue={setDirOption}
-                        />
-                      </HStack>
-
-                      <HStack gap={4} align="flex-end">
-                        <Field.Root flex={1}>
-                          <Field.Label
-                            color={"fg"}
-                            fontSize="sm"
-                            fontWeight="medium"
-                          >
-                            File Extension Filters (comma-separated)
-                          </Field.Label>
-                          <Input
-                            placeholder=".ts, .tsx, .js, .jsx"
-                            value={fileExtInput}
-                            onChange={(e) => setFileExtInput(e.target.value)}
-                            {...inputStyles}
-                          />
-                        </Field.Root>
-                        <SelectOptions
-                          value={fileExtOption}
-                          setValue={setFileExtOption}
-                        />
-                      </HStack>
-                    </VStack>
                   </VStack>
                 ) : (
                   <GitExplorer

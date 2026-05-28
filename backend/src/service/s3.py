@@ -1,12 +1,10 @@
-import logging
 import os
 import tempfile
 
 import boto3
 from botocore.exceptions import ClientError
 from fastapi import UploadFile
-
-logger = logging.getLogger("s3")
+from loguru import logger
 
 
 def _get_s3_client():

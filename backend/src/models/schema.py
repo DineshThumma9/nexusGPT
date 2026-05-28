@@ -1,45 +1,19 @@
 from datetime import datetime
 from typing import Dict, List, Optional
+from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field
 
 from src.models.enums import SenderRole
 
 
 # --- API (Pydantic) ---
 class ChatMessage(BaseModel):
-    role: SenderRole
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID = Field(validation_alias=AliasChoices("id", "message_id"))
+    sender: SenderRole
     content: str
     timestamp: Optional[datetime] = None
-
-
-class MessageInfo(BaseModel):
-    message_id: str
-    session_id: str
-    content: str
-    sender: str
-    timestamp: str
-
-
-class ToolCall(BaseModel):
-    name: str
-    arguments: Dict[str, str]
-
-
-class ChatbotSchema(BaseModel):
-    model: str
-    messages: List[ChatMessage]
-    temperature: float = 0.7
-    max_tokens: int = 1024
-    stream: bool = False
-    extra: Optional[Dict] = None
-
-
-class ModelInfo(BaseModel):
-    modelprovider: str
-    modelname: str
-    isFunctionCalling: bool
-    token_left: float
 
 
 class MessageRequest(BaseModel):
@@ -54,12 +28,6 @@ class QdrantClient(BaseModel):
     vector: List[float]
     payload: Dict
     collection_name: str
-
-
-class Notes(BaseModel):
-    session_id: str
-    context_id: str
-    context_type: str
 
 
 class UserPayload(BaseModel):
@@ -86,8 +54,19 @@ class TitleResponse(BaseModel):
     title: str
 
 
+class Title(BaseModel):
+    title: str = Field(description="Title of the session .Be Consise and Precise.")
+
+
 class SessionResponse(BaseModel):
-    session_id: str
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID = Field(validation_alias=AliasChoices("id", "session_id"))
+    session_id: UUID
+    title: str
+    kb_id: UUID | None = None
+    source_type: str | None = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class GitSpec(BaseModel):
@@ -127,3 +106,15 @@ class MCPModel(BaseModel):
     gallery: Optional[str] = None
     version: Optional[str] = None
     api_key: Optional[str] = None
+
+
+class PaginatedSessionResponse(BaseModel):
+    sessions: List[SessionResponse] = []
+    has_more: bool
+    next_cursor: Optional[str] = None
+
+
+class PaginatedMessageResponse(BaseModel):
+    messages: List[ChatMessage]
+    has_more: bool
+    next_cursor: Optional[str] = None

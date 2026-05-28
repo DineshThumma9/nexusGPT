@@ -1,25 +1,26 @@
 import json
-import logging
 import os
-import shutil
 import uuid
-from datetime import datetime
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+import requests
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from loguru import logger
 from sqlmodel import Session
 
 from src.db.dbs import get_db
-from src.db.redis_client import redis, redis_client
+from src.db.redis_client import redis_client
 from src.models.enums import KBSourceType, KBStatus
-from src.models.models import KnowledgeBase
-from src.models.models import Session as DBSession
+from src.models.models import KnowledgeBase, User
 from src.models.schema import GitRequest, GitSpec
+from src.router.auth import get_current_user
+from src.router.limiter import limiter
+from src.service.db_service import ensure_kb
+from src.service.s3 import upload_file_to_s3
 from src.service.tasks import ingest_git_repo_task, ingest_pdf_task
 from src.service.tools import get_dir_struct
 
 router = APIRouter()
-logger = logging.getLogger("rag")
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
@@ -27,54 +28,10 @@ UPLOADS_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
-def ensure_kb(
-    kb_id: str, session_id: str, db: Session, source_ref: str, source_type: KBSourceType
-):
-    """Ensures that the knowledge base exists in PostgreSQL and links it to the Session."""
-    try:
-        session_uuid = uuid.UUID(session_id)
-
-        # Link Session to this KB
-        db_session = db.query(DBSession).filter_by(session_id=session_uuid).first()
-        if db_session:
-            db_session.kb_id = kb_id
-            db.add(db_session)
-
-        # Ensure KnowledgeBase row exists
-        kb = db.query(KnowledgeBase).filter_by(kb_id=kb_id).first()
-        if not kb:
-            kb = KnowledgeBase(
-                kb_id=kb_id,
-                user_id=db_session.user_id
-                if db_session
-                else uuid.UUID(
-                    session_id
-                ),  # Fallback to session_id isn't exactly correct but keeps legacy behavior
-                source_type=source_type,
-                source_ref=source_ref,
-                status=KBStatus.PENDING,
-                created_at=datetime.utcnow(),
-            )
-            db.add(kb)
-
-        db.commit()
-        return kb
-    except Exception as dbe:
-        logger.error(f"Postgres update failed: {dbe}")
-        db.rollback()
-        raise HTTPException(
-            status_code=500, detail=f"Database association failed: {dbe}"
-        )
-
-
-import requests
-
-from src.models.models import User
-from src.router.auth import get_current_user
-
-
 @router.post("/git")
+@limiter.limit("5/minute")
 async def git_rag(
+    request: Request,
     req: GitRequest,
     session_id: str,
     kb_id: str = None,
@@ -82,7 +39,6 @@ async def git_rag(
     user: User = Depends(get_current_user),
 ):
     """Triggers the background ingestion of a Git repository via Celery."""
-    # Fetch latest SHA from GitHub
     headers = {}
     github_token = os.getenv("GITHUB_TOKEN")
     if github_token:
@@ -120,8 +76,6 @@ async def git_rag(
         kb.status in (KBStatus.READY, KBStatus.INDEXING, KBStatus.PENDING)
         and kb.created_at
     ):
-        # If the KB was created in the past and not FAILED, check if we really need to ingest again.
-        # Actually, if it's already READY or currently INDEXING, skip Celery task.
         if kb.status in (KBStatus.READY, KBStatus.INDEXING):
             logger.info(
                 f"KB {kb_id} (SHA: {sha}) already exists with status {kb.status}. Skipping ingestion."
@@ -147,13 +101,10 @@ async def git_rag(
     }
 
 
-from botocore.exceptions import ClientError
-
-from src.service.s3 import delete_prefix_from_s3, upload_file_to_s3
-
-
 @router.post("/upload")
+@limiter.limit("5/minute")
 async def get_rag(
+    request: Request,
     files: List[UploadFile] = File(...),
     session_id: str = Form(...),
     kb_id: str = Form(...),

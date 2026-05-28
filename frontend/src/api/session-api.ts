@@ -7,7 +7,7 @@ import useInitStore from "../store/initStore.ts";
 
 export const apiKeySelection = async (api_prov: string, api_key: string) => {
   const data = {
-    api_prov: api_prov.toUpperCase(),
+    api_prov: api_prov,
     api_key: api_key,
   };
 
@@ -27,16 +27,10 @@ export const apiKeySelection = async (api_prov: string, api_key: string) => {
   }
 };
 
-export const llmSelection = async (llm_class: string) => {
-  const backendProvider = llm_class
-    .toLowerCase()
-    .trim()
-    .replace("google genai", "google_genai")
-    .replace("mistral", "mistralai")
-    .replace("hugging face", "huggingface");
+export const llmSelection = async (providerId: string) => {
   await setupAPI.post(
     `/providers`,
-    { provider: backendProvider },
+    { provider: providerId },
     {
       headers: { "Content-Type": "application/json" },
     },
@@ -74,11 +68,18 @@ export const newSession = async (session_id?: string) => {
 
 export const getChatHistory = async (data: {
   session_id: string;
+  cursor?: string;
   limit?: number;
 }) => {
-  const res = await sessionAPI.get(`/history/${data.session_id}`);
+  const limit = data.limit || 30;
+  const cursorParam = data.cursor
+    ? `&cursor=${encodeURIComponent(data.cursor)}`
+    : "";
+  const res = await sessionAPI.get(
+    `/history/${data.session_id}?limit=${limit}${cursorParam}`,
+  );
   if (!res?.data) throw new Error("Session History Empty");
-
+  // Returns { messages: [...], next_cursor: string|null, has_more: bool }
   return res.data;
 };
 
@@ -102,8 +103,10 @@ export const updateSessionTitle = async (
   return res.data.title;
 };
 
-export const getAllSessions = async () => {
-  const res = await sessionAPI.get("/getAll");
+export const getAllSessions = async (cursor?: string, limit: number = 20) => {
+  const cursorParam = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
+  const res = await sessionAPI.get(`/getAll?limit=${limit}${cursorParam}`);
   if (!res?.data) throw new Error("No sessions found");
+  // Returns { sessions: [...], next_cursor: string|null, has_more: bool }
   return res.data;
 };

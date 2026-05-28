@@ -1,6 +1,6 @@
 import { Box, Button, FileUpload, HStack, IconButton } from "@chakra-ui/react";
 import { IoAttach } from "react-icons/io5";
-import { X } from "lucide-react";
+import { X, FileText } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef } from "react";
 import useSessionStore from "../store/sessionStore.ts";
@@ -70,8 +70,18 @@ const MediaPDF = ({ children }: Props) => {
     >
       {/* File display section */}
       {files.length > 0 && (
-        <Box w="100%" maxW="100%" overflowX="auto" pb={2}>
-          <HStack gap={2} minW="max-content" color="white">
+        <Box
+          w="100%"
+          maxW="100%"
+          overflowX="auto"
+          pb={2}
+          css={{
+            "&::-webkit-scrollbar": { display: "none" },
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
+          }}
+        >
+          <HStack gap={3} minW="max-content" px={1}>
             {files.map((file, index) => {
               // Create unique key to prevent React issues
               const fileKey = `${file.name}-${file.size}-${file.lastModified}-${index}`;
@@ -79,32 +89,46 @@ const MediaPDF = ({ children }: Props) => {
               return (
                 <Box
                   key={fileKey}
-                  minW="240px"
+                  minW="200px"
                   maxW="240px"
-                  h="50px"
-                  bg={"bg.panel"}
-                  border={`1px solid ${"border.subtle"}`}
-                  borderRadius="12px"
-                  p={3}
+                  h="44px"
+                  bg={{ base: "gray.50", _dark: "whiteAlpha.100" }}
+                  border="1px solid"
+                  borderColor={{ base: "gray.200", _dark: "whiteAlpha.200" }}
+                  borderRadius="xl"
+                  px={3}
                   display="flex"
                   alignItems="center"
                   justifyContent="space-between"
                   position="relative"
                   flexShrink={0}
+                  transition="all 0.2s"
+                  _hover={{
+                    bg: { base: "gray.100", _dark: "whiteAlpha.200" },
+                    borderColor: "brand.500",
+                    transform: "translateY(-1px)",
+                    boxShadow: "sm",
+                  }}
                 >
                   <HStack gap={3} flex={1} overflow="hidden">
-                    <Box fontSize="24px" color={"fg"} flexShrink={0}>
-                      📄
+                    <Box
+                      color="brand.500"
+                      flexShrink={0}
+                      display="flex"
+                      alignItems="center"
+                    >
+                      <FileText size={16} strokeWidth={2.5} />
                     </Box>
                     <Box
                       fontSize="sm"
                       fontWeight="500"
-                      color={"fg"}
+                      color={{ base: "gray.800", _dark: "gray.100" }}
                       overflow="hidden"
                       textOverflow="ellipsis"
                       whiteSpace="nowrap"
                       flex={1}
                       title={file.name} // Tooltip for full name
+                      letterSpacing="-0.01em"
                     >
                       {file.name}
                     </Box>
@@ -114,19 +138,17 @@ const MediaPDF = ({ children }: Props) => {
                     variant="ghost"
                     onClick={() => handleRemoveFile(index)}
                     aria-label="Remove file"
-                    color={{ base: "red.600", _dark: "red.400" }}
+                    color={{ base: "gray.400", _dark: "gray.500" }}
                     bg="transparent"
                     flexShrink={0}
+                    w="24px"
+                    h="24px"
+                    minW="24px"
                     borderRadius="full"
                     transition="all 0.2s ease"
                     _hover={{
                       bg: { base: "red.50", _dark: "red.950" },
-                      color: { base: "red.700", _dark: "red.300" },
-                      transform: "scale(1.1)",
-                    }}
-                    _active={{
-                      transform: "scale(0.9)",
-                      bg: { base: "red.100", _dark: "red.900" },
+                      color: { base: "red.600", _dark: "red.400" },
                     }}
                   >
                     <X size={14} />

@@ -190,7 +190,7 @@ const SendRequest = () => {
     }
 
     const message: Message = {
-      session_id: v4(),
+      session_id: currentSession,
       message_id: v4(),
       content: messageContent,
       sender: "user",
@@ -279,6 +279,7 @@ const SendRequest = () => {
           />
         </MediaPDF>
 
+        {/*
         <IconButton
           aria-label="Test Mock RAG Status"
           onClick={() => {
@@ -299,6 +300,7 @@ const SendRequest = () => {
         >
           <Database size={16} />
         </IconButton>
+        */}
 
         <IconButton
           aria-label={isStreaming ? "Stop streaming" : "Send message"}
