@@ -4,6 +4,7 @@ import useSessionStore from "../store/sessionStore.ts";
 import { z } from "zod/v4";
 import { useEffect, useRef } from "react";
 import useSessions from "./useSessions.ts";
+import { toaster } from "../components/ui/toaster";
 
 const docSchema = z.object({
   doc_id: z.string().uuid(),
@@ -132,10 +133,52 @@ const useMessage = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
+        const status = response.status;
+
+        let title = "Streaming Error";
+        let message = errorText;
+
+        try {
+          const data = JSON.parse(errorText);
+          if (status === 422) {
+            title = "Validation Error";
+            message = "Please check your message.";
+            if (data?.detail && Array.isArray(data.detail)) {
+              message = data.detail.map((err: any) => err.msg).join(", ");
+            } else if (typeof data?.detail === "string") {
+              message = data.detail;
+            }
+          } else if (status === 429) {
+            title = "Too Many Requests";
+            message =
+              data?.detail ||
+              "You've hit the rate limit. Please wait a moment before trying again.";
+          } else if (status === 413) {
+            title = "File Too Large";
+            message =
+              data?.detail ||
+              "The file you attached exceeds the maximum allowed size.";
+          } else if (status === 402) {
+            title = "Payment Required";
+            message =
+              data?.detail ||
+              "You have exceeded your quota or need to update your payment details.";
+          }
+        } catch (e) {
+          // If it's not JSON, stick to defaults
+        }
+
+        if ([422, 429, 413, 402].includes(status)) {
+          toaster.create({
+            title,
+            description: message,
+            type: "error",
+            duration: 5000,
+          });
+        }
+
         console.error("Error response:", errorText);
-        throw new Error(
-          `HTTP error! status: ${response.status}, message: ${errorText}`,
-        );
+        throw new Error(`HTTP error! status: ${status}, message: ${errorText}`);
       }
 
       if (!response.body) {

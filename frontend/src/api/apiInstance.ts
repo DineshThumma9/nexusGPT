@@ -7,6 +7,8 @@ import useValidationStore from "../store/validationStore";
 
 export const API_BASE_URL = import.meta.env.VITE_API_URI;
 
+import { toaster } from "../components/ui/toaster";
+
 const handleAuthError = () => {
   console.log("Authentication failed - clearing user session");
 
@@ -49,10 +51,52 @@ const addErrorInterceptor = (
       }
 
       if (error.response) {
-        console.error(
-          `${apiName} Response Error: ${error.response.status}`,
-          error.response.data,
-        );
+        const status = error.response.status;
+        const data = error.response.data as any;
+
+        let title = "Error";
+        let message = "An unexpected error occurred.";
+
+        // Handle specific error codes gracefully
+        if (status === 422) {
+          title = "Validation Error";
+          message = "Please check the information you entered.";
+          if (data?.detail && Array.isArray(data.detail)) {
+            message = data.detail.map((err: any) => err.msg).join(", ");
+          } else if (typeof data?.detail === "string") {
+            message = data.detail;
+          }
+        } else if (status === 429) {
+          title = "Too Many Requests";
+          message =
+            data?.detail ||
+            "You've hit the rate limit for your requesting API Endpoint. Please wait a moment before trying again.";
+        } else if (status === 413) {
+          title = "File Too Large";
+          message =
+            data?.detail ||
+            "The file you uploaded exceeds the maximum allowed size.";
+        } else if (status === 402) {
+          title = "Payment Required";
+          message =
+            data?.detail ||
+            "You have exceeded your quota or need to update your payment details for your API Key.";
+        } else if (status >= 500) {
+          title = "Server Error";
+          message =
+            "We're experiencing technical difficulties. Please try again later.";
+        }
+
+        if ([422, 429, 413, 402, 500].includes(status)) {
+          toaster.create({
+            title,
+            description: message,
+            type: "error",
+            duration: 5000,
+          });
+        }
+
+        console.error(`${apiName} Response Error: ${status}`, data);
       } else if (error.request) {
         console.error(
           `${apiName} Request Error:`,
