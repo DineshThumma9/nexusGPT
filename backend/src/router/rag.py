@@ -18,7 +18,7 @@ from src.router.limiter import limiter
 from src.service.db_service import ensure_kb
 from src.service.s3 import upload_file_to_s3
 from src.service.tasks import ingest_git_repo_task, ingest_pdf_task
-from src.service.tools import get_dir_struct
+from src.service.utils import get_dir_struct
 
 router = APIRouter()
 
@@ -26,6 +26,53 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
 UPLOADS_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
+
+
+def validate_and_get_commit_sha(req: GitRequest) -> tuple[str, str]:
+    """
+    Validates the GitHub repository, finds the appropriate branch/commit,
+    and returns the commit SHA and resolved branch/ref.
+    """
+    headers = {}
+    github_token = os.getenv("GITHUB_TOKEN")
+    if github_token:
+        headers["Authorization"] = f"token {github_token}"
+
+    ref = req.commit or req.branch or "HEAD"
+    resp = requests.get(
+        f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
+        headers=headers,
+    )
+
+    # If ref not found (branch name wrong / repo uses 'master' not 'main'),
+    # fall back to the repo's actual default branch automatically.
+    if resp.status_code in (404, 422) and not req.commit:
+        repo_meta = requests.get(
+            f"https://api.github.com/repos/{req.owner}/{req.repo}",
+            headers=headers,
+        )
+        if repo_meta.status_code == 404:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Repository '{req.owner}/{req.repo}' not found or not accessible.",
+            )
+        default_branch = repo_meta.json().get("default_branch", "HEAD")
+        logger.info(
+            f"Branch '{ref}' not found — falling back to default branch '{default_branch}'"
+        )
+        ref = default_branch
+        resp = requests.get(
+            f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
+            headers=headers,
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to fetch repo from GitHub: {resp.text}",
+        )
+
+    return resp.json()["sha"], ref
 
 
 @router.post("/git")
@@ -39,23 +86,9 @@ async def git_rag(
     user: User = Depends(get_current_user),
 ):
     """Triggers the background ingestion of a Git repository via Celery."""
-    headers = {}
-    github_token = os.getenv("GITHUB_TOKEN")
-    if github_token:
-        headers["Authorization"] = f"token {github_token}"
-
-    ref = req.commit or req.branch or "HEAD"
-    resp = requests.get(
-        f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
-        headers=headers,
-    )
-    if resp.status_code != 200:
-        raise HTTPException(
-            status_code=400, detail=f"Failed to fetch repo from GitHub: {resp.text}"
-        )
+    sha, ref = validate_and_get_commit_sha(req)
 
     # Override the frontend's kb_id with a deterministic UUID based on the SHA
-    sha = resp.json()["sha"]
     kb_id = str(uuid.uuid5(uuid.NAMESPACE_OID, sha))
 
     logger.info(
@@ -93,7 +126,11 @@ async def git_rag(
     )
 
     # Trigger Celery Task asynchronously
-    ingest_git_repo_task.delay(req.model_dump(), kb_id, session_id, str(user.userid))
+    # `ref` already holds the correct branch (original or auto-detected fallback).
+    # The commits API response has no "branch" field — don't try to read it from there.
+    req_data = req.model_dump()
+    req_data["branch"] = ref
+    ingest_git_repo_task.delay(req_data, kb_id, session_id, str(user.userid))
 
     return {
         "status": "indexing",

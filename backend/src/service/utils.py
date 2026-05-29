@@ -7,6 +7,7 @@ from typing import Any
 
 import loguru as logger
 from cryptography.fernet import Fernet
+from github import Auth, Github
 
 
 def _unpack_compiled_object(items, raw_source: bytes = None):
@@ -188,3 +189,48 @@ def decrypt(key: str) -> str:
     if not fernet:
         raise ValueError("FERNET_KEY environment variable is not set")
     return fernet.decrypt(key.encode()).decode()
+
+
+def build_tree(tree_lis):
+    root = {"name": "/", "type": "tree", "children": []}
+    path_map = {"/": root}
+
+    for item in tree_lis:
+        parts = item["path"].split("/")
+        for i in range(1, len(parts) + 1):
+            sub_path = "/".join(parts[:i])
+            if sub_path not in path_map:
+                parent_path = "/".join(parts[: i - 1]) or "/"
+                parent = path_map[parent_path]
+                node_type = "tree" if i < len(parts) else item["type"]
+                node = {
+                    "name": parts[i - 1],
+                    "path": sub_path,
+                    "type": node_type,
+                    "children": [] if node_type == "tree" else None,
+                }
+
+                if node_type == "blob":  # file
+                    node["sha"] = item.get("sha")
+                    node["size"] = item.get("size")
+
+                parent["children"].append(node)
+                path_map[sub_path] = node
+
+    return root["children"]
+
+
+def get_dir_struct(req):
+
+    github_client = Github(auth=Auth.Token(req.token))
+    repo = github_client.get_repo(f"{req.owner}/{req.repo}")
+    tree_sha = repo.default_branch
+    tree = repo.get_git_tree(sha=tree_sha, recursive=True)
+    lis = []
+
+    for item in tree.tree:
+        lis.append(
+            {"type": item.type, "path": item.path, "size": item.size, "sha": item.sha}
+        )
+
+    return build_tree(lis)

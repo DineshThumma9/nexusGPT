@@ -63,8 +63,58 @@ const shikiAdapter = createShikiAdapter<HighlighterGeneric<any, any>>({
     });
   },
 });
+
+const LANG_ALIASES: Record<string, string> = {
+  env: "dotenv",
+  envfile: "dotenv",
+  dotenv: "dotenv",
+  sh: "bash",
+  zsh: "bash",
+  shell: "bash",
+  shellscript: "bash",
+  py: "python",
+  js: "javascript",
+  ts: "typescript",
+  "c++": "cpp",
+  cplusplus: "cpp",
+  dockerfile: "docker",
+  yml: "yaml",
+  ps1: "powershell",
+  ps: "powershell",
+};
+
+// Languages Shiki actually has loaded (must match the langs array in createHighlighter)
+const LOADED_LANGS = new Set([
+  "tsx",
+  "json",
+  "bash",
+  "py",
+  "python",
+  "jade",
+  "java",
+  "javascript",
+  "kotlin",
+  "typescript",
+  "c",
+  "cpp",
+  "yml",
+  "yaml",
+  "shellscript",
+  "shell",
+  "jsx",
+  "dotenv",
+  "docker",
+  "powershell",
+]);
+
+const normalizeLanguage = (lang: string): string => {
+  const lower = lang.toLowerCase();
+  const aliased = LANG_ALIASES[lower] ?? lower;
+  return LOADED_LANGS.has(aliased) ? aliased : ""; // unknown → plain text, no crash
+};
+
 const CodeComponent = ({ inline, className, children }: CodeComponentProps) => {
-  const match = /language-(\w+)/.exec(className || "");
+  const match = /language-([\w+]+)/.exec(className || "");
 
   const getTextContent = (node: React.ReactNode): string => {
     if (typeof node === "string") return node;
@@ -80,7 +130,7 @@ const CodeComponent = ({ inline, className, children }: CodeComponentProps) => {
   };
 
   const codeString = getTextContent(children).replace(/\n$/, "");
-  const language = match ? match[1] : "";
+  const language = match ? normalizeLanguage(match[1]) : "";
 
   // ✅ Handle inline code (or language-less block code inside a <pre>)
   if (!language) {

@@ -75,3 +75,7 @@ centralGPT-backend/
 
 uploads/
 backend/.github/
+backend/graphify-out/
+backend/graphify-out/rules
+backend/graphify-out/workflows
+graphify-out/

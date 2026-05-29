@@ -16,7 +16,10 @@ logs/
 src/data
 later/
 .env
-".env" 
+".env"
+.env.dev
+.env.local
+.env.*
 logs
 src/logs
 storage

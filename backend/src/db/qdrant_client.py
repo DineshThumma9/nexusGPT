@@ -71,9 +71,9 @@ def _setup_collections(client: QdrantClient):
                 client.create_collection(
                     collection_name=name,
                     vectors_config=models.VectorParams(
-                        size=1024, distance=models.Distance.COSINE, on_disk=True
+                        size=1024, distance=models.Distance.COSINE
                     ),
-                    shard_number=4,
+                    shard_number=1,
                 )
 
             client.create_payload_index(

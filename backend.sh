@@ -2,8 +2,8 @@
 
 # Start frontend
 
-echo "Starting celery and backend"
+echo "Starting backend"
 cd backend
-source .venv/bin/activate
+set -a && source .env.dev && set +a
 uv run uvicorn src.main:app --reload
 

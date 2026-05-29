@@ -138,6 +138,125 @@ def build_hierarchy(documents: List[Document]) -> Dict[str, ProjectNode]:
     return enriched_docs
 
 
+# Always skip — pure noise
+ALWAYS_SKIP = {
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "poetry.lock",
+    "Cargo.lock",
+    "composer.lock",
+    "Gemfile.lock",
+    ".DS_Store",
+    "Thumbs.db",
+}
+
+# Skip these directory prefixes
+SKIP_DIRS = {
+    "dist/",
+    "build/",
+    "out/",
+    ".next/",
+    ".nuxt/",
+    "__pycache__/",
+    "node_modules/",
+    ".git/",
+    ".idea/",
+    ".vscode/",
+    "coverage/",
+    ".pytest_cache/",
+}
+
+# Skip these extensions
+SKIP_EXTENSIONS = {
+    ".min.js",
+    ".min.css",
+    ".bundle.js",
+    ".pyc",
+    ".pyo",
+    ".class",
+    ".o",
+    ".so",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".ico",
+    ".svg",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".rar",
+    ".mp4",
+    ".mp3",
+    ".wav",
+}
+
+# Parse these as plain text (skip tree-sitter, store as single chunk)
+PARSE_AS_TEXT = {
+    "package.json",
+    "tsconfig.json",
+    "tsconfig.base.json",
+    "vite.config.ts",
+    "vite.config.js",
+    "webpack.config.js",
+    "rollup.config.js",
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "Dockerfile",
+    ".env.example",
+    "requirements.txt",
+    "pyproject.toml",
+    "go.mod",
+    "Cargo.toml",
+    ".eslintrc.json",  # borderline but small
+}
+
+
+def classify_file(path: str) -> str:
+    """Returns 'skip', 'text', or 'parse'"""
+
+    filename = path.split("/")[-1]
+
+    if filename in ALWAYS_SKIP:
+        return "skip"
+
+    if any(path.startswith(d) or f"/{d}" in path for d in SKIP_DIRS):
+        return "skip"
+
+    if any(filename.endswith(ext) for ext in SKIP_EXTENSIONS):
+        return "skip"
+
+    if filename in PARSE_AS_TEXT:
+        return "text"
+
+    # markdown and plain text → text chunks
+    if filename.endswith(".md") or filename.endswith(".txt"):
+        return "text"
+
+    return "parse"
+
+
+CHUNK_SIZE_BY_LANGUAGE = {
+    "python": 1500,  # dense, functions self-contained
+    "javascript": 1500,  # components self-contained
+    "typescript": 1500,
+    "java": 2000,  # verbose, needs more context per chunk
+    "cpp": 2500,  # large functions, macros need context
+    "c": 2500,
+    "go": 1200,  # small functions by convention
+    "rust": 1800,
+}
+
+
+def get_chunk_size(lang_name: str) -> int:
+    return CHUNK_SIZE_BY_LANGUAGE.get(lang_name, 1500)
+
+
 def build_relation_and_index(enriched_docs: Dict[str, ProjectNode]):
     """Analyzes AST and imports to prepare relational records for Neo4j and code chunks for Qdrant."""
     ast_docs = []
@@ -167,12 +286,50 @@ def build_relation_and_index(enriched_docs: Dict[str, ProjectNode]):
             )
 
         # 3. AST & Code Parsing
+        take = classify_file(project_file.file_path)
+
+        if take == "skip":
+            continue
+        elif take == "text":
+            # parse as plain text (no AST, single chunk)
+            chunk = {
+                "content": project_file.content,
+                "start_line": 1,
+                "end_line": None,
+                "kind": "file",
+                "name": "file",
+            }
+            chunkdic = _extract_chunks(chunk)
+            content = chunkdic["content"]
+            metadata = {
+                "id": str(uuid.uuid4()),
+                "content": content,
+                "path": project_file.file_path,
+                "source": path,
+                "start_line": 1,
+                "end_line": None,
+            }
+            ast_docs.append(Document(page_content=content, metadata=metadata))
+            batch_symbols.append(
+                {
+                    "kind": "file",
+                    "name": "file",
+                    "path": project_file.file_path,
+                    "node_id": f"{project_file.file_path}::file",
+                }
+            )
+            continue
+
+        # AST mode
         lang_name = detect_language_from_path(project_file.file_path)
         if not lang_name:
             continue
 
         config = ProcessConfig(
-            language=lang_name, structure=True, imports=True, chunk_max_size=1000
+            language=lang_name,
+            structure=True,
+            imports=True,
+            chunk_max_size=get_chunk_size(lang_name),
         )
         try:
             result = process(project_file.content, config)

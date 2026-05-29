@@ -4,12 +4,26 @@ from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
     SummarizationMiddleware,
     ToolCallLimitMiddleware,
+    wrap_tool_call,
 )
 from langchain.agents.middleware.types import AgentMiddleware
-from langchain_core.messages import RemoveMessage
+from langchain_core.messages import RemoveMessage, ToolMessage
 from langchain_groq import ChatGroq
 
 from src.service.prompts import summarization_prompt
+
+
+# Example: Using @wrap_tool_call middleware to intercept and return error ToolMessages
+@wrap_tool_call
+async def handle_tool_errors(request, handler):
+    try:
+        return await handler(request)
+    except Exception as error:
+        return ToolMessage(
+            content=f"Error: {str(error)}",
+            tool_call_id=request.tool_call["id"],
+            status="error",
+        )
 
 
 class CleanToolMessagesMiddleware(AgentMiddleware):
@@ -70,4 +84,10 @@ def middleware_setup():
     orphan_cleaner = CleanToolMessagesMiddleware()
 
     # Order matters: Clean orphans first, track limits, then summarize if needed
-    return [orphan_cleaner, tool_tracker, call_tracker, summarization]
+    return [
+        handle_tool_errors,
+        orphan_cleaner,
+        tool_tracker,
+        call_tracker,
+        summarization,
+    ]

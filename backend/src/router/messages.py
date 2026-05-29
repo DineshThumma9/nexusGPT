@@ -57,15 +57,26 @@ async def _stream(
         ):
             if await request.is_disconnected():
                 break
+
             msg_chunk, _meta = chunk
+
+            msg_content, _meta = chunk
+            # print(f"Hello I am meta:{_meta.get('langgraph_node')} | Type: {type(msg_chunk).__name__} ")
+
+            if hasattr(msg_chunk, "tool_call_chunks") and msg_chunk.tool_call_chunks:
+                continue
+
             if hasattr(msg_chunk, "content") and msg_chunk.content:
                 if isinstance(msg_chunk, AIMessageChunk) and isinstance(
                     msg_chunk.content, str
                 ):
-                    # Only stream output from the main agent, ignoring background middleware/summarizers
-                    token = msg_chunk.content
-                    full += token
-                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    if (
+                        _meta.get("langgraph_node") == "model"
+                    ):  # Only stream output from the main agent, ignoring background middleware/summarizers
+                        token = msg_chunk.content
+                        full += token
+                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
     except Exception as e:
         logger.error(f"Stream error: {e}")
         yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"

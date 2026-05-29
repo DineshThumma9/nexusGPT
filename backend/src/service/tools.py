@@ -31,53 +31,6 @@ token = os.getenv("GITHUB_TOKEN")
 g = Github(auth=Auth.Token(token))
 
 
-def build_tree(tree_lis):
-    root = {"name": "/", "type": "tree", "children": []}
-    path_map = {"/": root}
-
-    for item in tree_lis:
-        parts = item["path"].split("/")
-        for i in range(1, len(parts) + 1):
-            sub_path = "/".join(parts[:i])
-            if sub_path not in path_map:
-                parent_path = "/".join(parts[: i - 1]) or "/"
-                parent = path_map[parent_path]
-                node_type = "tree" if i < len(parts) else item["type"]
-                node = {
-                    "name": parts[i - 1],
-                    "path": sub_path,
-                    "type": node_type,
-                    "children": [] if node_type == "tree" else None,
-                }
-
-                if node_type == "blob":  # file
-                    node["sha"] = item.get("sha")
-                    node["size"] = item.get("size")
-
-                parent["children"].append(node)
-                path_map[sub_path] = node
-
-    return root["children"]
-
-
-def get_dir_struct(req):
-    if hasattr(req, "token") and req.token:
-        github_client = Github(auth=Auth.Token(req.token))
-    else:
-        github_client = g
-    repo = github_client.get_repo(f"{req.owner}/{req.repo}")
-    tree_sha = repo.default_branch
-    tree = repo.get_git_tree(sha=tree_sha, recursive=True)
-    lis = []
-
-    for item in tree.tree:
-        lis.append(
-            {"type": item.type, "path": item.path, "size": item.size, "sha": item.sha}
-        )
-
-    return build_tree(lis)
-
-
 async def get_mcp_tools(user_id):
     logger.info("starting getting mcp tools")
     try:
@@ -179,7 +132,7 @@ def _resolve_path(target: str, graph_obj: Neo4jGraph, neo4j_ns: str) -> str | No
             return p
     basenames = {p.split("/")[-1]: p for p in paths}
     matches = difflib.get_close_matches(
-        target.split("/")[-1], basenames, n=1, cutoff=0.6
+        target.split("/")[-1], basenames, n=1, cutoff=0.8
     )
     return basenames[matches[0]] if matches else None
 
@@ -194,11 +147,10 @@ async def make_tools(
     """
     Tool factory. All tools close over the session-specific clients.
     """
-
     cypher_chain = None
     if graph_obj:
-        c_model = os.getenv("CYPHER_LLM") or "llama-3.1-8b-instant"
-        q_model = os.getenv("QA_LLM") or "llama-3.1-8b-instant"
+        c_model = os.getenv("CYPHER_LLM")
+        q_model = os.getenv("QA_LLM")
 
         cypher_chain = GraphCypherQAChain.from_llm(
             cypher_llm=Groq(model=c_model),
@@ -208,207 +160,187 @@ async def make_tools(
             verbose=True,
         )
 
-    @tool
-    def ask_architecture(question: str) -> str:
-        """Ask natural language questions about the codebase architecture, file dependencies, and structural relationships. (e.g. 'What files import X?')"""
-        if not cypher_chain:
-            return (
-                "No codebase is currently loaded. Cannot answer architecture questions."
-            )
-        try:
-            res = cypher_chain.invoke({"query": question})
-            return res.get("result", str(res))
-        except Exception as e:
-            return f"Error querying architecture graph: {e}"
-
-    @tool
-    def get_project_context() -> str:
-        """Always call this first. Returns README and high-level project info."""
+    @tool(
+        description="Use this tool at the start of a conversation or when the user asks what the project is about, its tech stack, or how to get started."
+    )
+    def get_project_context():
+        """Returns the project overview and tech stack from the README and indexed docs."""
         if not vector_db:
+            logger.info(
+                f"Vector DB not configured for user_id: {user_id}, ns: {neo4j_ns}"
+            )
             return "No knowledge base is currently loaded."
-        docs = vector_db.similarity_search("README", k=4)
+
+        docs = vector_db.similarity_search("README project overview tech stack", k=5)
         readme_docs = [
-            d for d in docs if "readme" in str(d.metadata.get("source", "")).lower()
+            doc for doc in docs if "readme" in doc.metadata.get("source", "").lower()
         ]
+
         if readme_docs:
-            return "--- README ---\n" + "\n".join([d.page_content for d in readme_docs])
-        return "No README found or context loaded."
+            return "---README---\n" + "\n".join(
+                [doc.page_content for doc in readme_docs]
+            )
 
-    @tool
-    def get_project_hierarchy() -> str:
-        """Returns the full file tree of the loaded repository."""
+        return "\n----\n".join(
+            f"source: {doc.metadata.get('source', '?')}\ncontent: {doc.page_content}"
+            for doc in docs
+        )
+
+    @tool(
+        description="Returns the full file and folder hierarchy of the loaded repository. Use this when the user asks about project structure, what files exist, or wants to navigate the codebase."
+    )
+    def get_project_hierarchy():
+        """Returns the full file tree of the loaded repository from the graph database."""
         if not graph_obj or not neo4j_ns:
             return "No codebase is currently loaded."
-        res = graph_obj.query(
-            "MATCH (f:File {ns: $ns}) RETURN f.id AS path", {"ns": neo4j_ns}
-        )
-        paths = [r["path"] for r in res]
-        result = "\n".join(sorted(paths)) if paths else "No files found."
-        if len(result) > 3000:
-            result = result[:3000] + "\n... [Output truncated to save tokens]"
-        return result
 
-    @tool
-    def get_file_context(file_path: str) -> str:
-        """Lists functions and classes inside a specific file."""
+        query = """
+        MATCH (f:File {ns: $ns})
+        RETURN f.id AS path
+        ORDER BY f.id
+        """
+
+        results = graph_obj.query(query, {"ns": neo4j_ns})
+
+        if not results:
+            return "No files found."
+
+        paths = [r["path"] for r in results]
+        output = "\n".join(f"- {p}" for p in paths)
+        if len(output) > 3000:
+            output = output[:3000] + "\n... [truncated to save tokens]"
+        return output
+
+    @tool(
+        description="Returns all files inside a specific directory. Use this when the user asks about a specific folder, module, or package within the project."
+    )
+    def get_dir_context(dir: str):
+        """Lists all files under the given directory path prefix."""
         if not graph_obj or not neo4j_ns:
             return "No codebase is currently loaded."
-        actual = _resolve_path(file_path, graph_obj=graph_obj, neo4j_ns=neo4j_ns)
-        if not actual:
-            return f"File '{file_path}' not found."
-        result = graph_obj.query(
-            "MATCH (f:File {id: $path, ns: $ns})-[:CONTAINS]->(s:Symbol) RETURN s.type AS kind, s.name AS name",
-            {"path": actual, "ns": neo4j_ns},
-        )
-        lines = [f"- [{r['kind']}] {r['name']}" for r in result]
-        return (
-            f"Contents of {actual}:\n" + "\n".join(lines)
-            if lines
-            else "No symbols found."
-        )
 
-    @tool
-    def read_file_content(file_path: str) -> str:
+        dir_query = """
+            MATCH (f:File {ns: $ns})
+            WHERE f.id STARTS WITH $dir OR f.id CONTAINS $dir
+            RETURN f.id AS path
+            ORDER BY f.id
         """
-        Reads the full content of a file (e.g., README.md, package.json).
-        Use this when you need the exact content of a non-code file or the full file context.
-        """
-        if not vector_db:
-            return "No knowledge base is currently loaded."
-        actual = _resolve_path(file_path, graph_obj=graph_obj, neo4j_ns=neo4j_ns)
-        if not actual:
-            actual = file_path
 
-        client = vector_db.client
-        collection_name = vector_db.collection_name
+        results = graph_obj.query(dir_query, {"ns": neo4j_ns, "dir": dir})
 
-        try:
-            records, _ = client.scroll(
-                collection_name=collection_name,
-                scroll_filter=models.Filter(
-                    must=[
-                        models.FieldCondition(
-                            key="metadata.source", match=models.MatchValue(value=actual)
-                        )
-                    ]
-                ),
-                limit=1000,
-                with_payload=True,
-                with_vectors=False,
+        if not results:
+            return f"No files found under directory '{dir}'."
+
+        return "\n".join(f"- {r['path']}" for r in results)
+
+    @tool(
+        description="This tool provides overview of file gives classes,function,interface or any other symbol it contain"
+    )
+    def get_file_context(path: str):
+        "Gives Context of file and functions and classes and flow"
+
+        if not graph_obj:
+            logger.info(
+                "Graph obj has not been configured tried to make a file context call user_id:{user_id} and ns: {neo4j_ns}"
             )
+            return
 
-            if not records:
-                return f"No content found for '{actual}' in the vector store."
+        actual = _resolve_path(path, graph_obj, neo4j_ns)
 
-            def get_start(r):
-                meta = r.payload.get("metadata", {})
-                return meta.get("start_byte") or meta.get("start_line") or 0
-
-            sorted_records = sorted(records, key=get_start)
-            content = "\n".join(
-                r.payload.get("page_content", "") for r in sorted_records
-            )
-            if len(content) > 3500:
-                content = (
-                    content[:3500]
-                    + "\n\n... [Content truncated due to length to fit LLM token limits]"
-                )
-            return f"--- {actual} ---\n{content}"
-        except Exception as e:
-            return f"Error reading file content: {e}"
-
-    @tool
-    def search_code(query: str) -> str:
-        """Semantic search across the codebase. Use for 'where is X implemented?' questions."""
-        if not vector_db:
-            return "No knowledge base is currently loaded."
-        docs = vector_db.similarity_search(query, k=4)
-        return (
-            "\n---\n".join(
-                f"Source: {d.metadata.get('source', '?')}\n{d.page_content}"
-                for d in docs
-            )
-            or "No results."
-        )
-
-    @tool
-    def get_specific_code(file_path: str, target_name: str) -> str:
-        """
-        Fetches the exact source code chunk of a specific function or class from a specific file.
-        Args:
-            file_path: e.g., 'src/service/auth_service.py'
-            target_name: The exact name of the function/class (e.g., 'get_current_user')
-        """
-        if not vector_db:
-            return "No knowledge base is currently loaded."
-        actual = _resolve_path(file_path, graph_obj=graph_obj, neo4j_ns=neo4j_ns)
         if not actual:
-            return f"Error: '{file_path}' not found."
+            return f"No File found {path}"
+
+        file_query = """
+            MATCH (f:File {id: $path, ns: $ns}) - [:CONTAINS] -> (s:Symbol)
+            RETURN s.type as kind, s.name as name
+            ORDER BY s.name
+        """
+
+        results = graph_obj.query(file_query, {"path": actual, "ns": neo4j_ns})
+
+        if not results:
+            return f"No symbols found in '{actual}'. The file exists but may have no parsed symbols (e.g. config/text file)."
+
+        return "\n".join([f"Kind: {r['kind']} | Name: {r['name']}" for r in results])
+
+    @tool(
+        description="Fetches the exact source code of a specific function, class, or symbol within a file. Use this when you know the file path and the name of the symbol you want to read."
+    )
+    def get_source_code(path: str, symbol: str):
+        """Returns the source code of the specified symbol from the given file."""
+        if not vector_db:
+            logger.info(
+                f"Vector DB not configured for user_id: {user_id}, ns: {neo4j_ns}"
+            )
+            return "No knowledge base is currently loaded."
+
+        if not path or not path.strip():
+            return "Error: 'path' must not be empty. Provide the file path (e.g. 'src/service/tools.py')."
+        if not symbol or not symbol.strip():
+            return "Error: 'symbol' must not be empty. Provide the function or class name to look up."
+
+        actual = _resolve_path(path, graph_obj, neo4j_ns)
+        if not actual:
+            return f"File not found: '{path}'"
 
         docs = vector_db.similarity_search(
-            query=target_name,
-            k=3,
+            symbol.strip(),
+            k=4,
             filter=models.Filter(
                 must=[
                     models.FieldCondition(
-                        key="metadata.source", match=models.MatchValue(value=actual)
+                        key="metadata.source",
+                        match=models.MatchValue(value=actual),
                     )
                 ]
             ),
         )
 
         if not docs:
-            return f"Could not find exact code for '{target_name}' in {actual}."
+            return f"No code found for symbol '{symbol}' in '{actual}'. Try get_file_context first to see what symbols exist in this file."
 
-        docs = sorted(
+        sorted_docs = sorted(
             docs,
             key=lambda d: (
                 d.metadata.get("start_line") or d.metadata.get("start_byte") or 0
             ),
         )
 
-        content = "\n".join(d.page_content for d in docs)
+        content = "\n".join(doc.page_content for doc in sorted_docs)
+        return f"--- Source of '{symbol}' in {actual} ---\n{content}"
 
-        return f"--- Code for '{target_name}' in {actual} ---\n{content}"
-
-    @tool
-    def query_dependencies(file_path: str, direction: str) -> str:
+    @tool(
+        description="This tool provides enables natural language to query on codebase architecture and flow use it when query is complex and standard tools will result in more tokens"
+    )
+    def ask_architecture(query: str):
         """
-        Explore import relationships.
-        direction: 'imports' (what this file depends on) or 'imported_by' (what uses it)
+        A Tool which answers complex architecture related queries on basis of file dependency and file imports and code structure
+        Use it for when question is ambigous and standard tools might leads to more token consumptions
+
         """
-        if not graph_obj or not neo4j_ns:
-            return "No codebase is currently loaded."
-        actual = _resolve_path(file_path, graph_obj=graph_obj, neo4j_ns=neo4j_ns)
-        if not actual:
-            return f"File '{file_path}' not found."
-        if direction == "imports":
-            res = graph_obj.query(
-                "MATCH (f:File {id: $p, ns: $ns})-[:IMPORTS]->(m:Module) RETURN m.name AS name",
-                {"p": actual, "ns": neo4j_ns},
-            )
-        else:
-            res = graph_obj.query(
-                "MATCH (f:File {ns: $ns})-[:IMPORTS]->(m:Module) WHERE m.name CONTAINS $t RETURN f.id AS name",
-                {"t": file_path, "ns": neo4j_ns},
-            )
-        return "\n".join(f"- {r['name']}" for r in res) or "None found."
 
-    @tool
-    def search_documents(query: str) -> str:
-        """Semantic search across the uploaded document/PDF. Use for asking questions about the document, PDF, or files."""
-        if not vector_db:
-            return "No knowledge base is currently loaded."
-
-        logger.info(f"search_documents called with query: '{query}'")
-        docs = vector_db.similarity_search(query, k=4)
-        return (
-            "\n---\n".join(
-                f"Source: {d.metadata.get('source', '?')}\n{d.page_content}"
-                for d in docs
+        if not graph_obj:
+            logger.info(
+                "Graph obj has not been configured tried to make a file context call user_id:{user_id} and ns: {neo4j_ns}"
             )
-            or "No results."
-        )
+            return
+
+        if not query:
+            return "please provide query"
+
+        try:
+            result = cypher_chain.invoke({"query": query})
+            return result.get("result", str(result))
+        except Exception as e:
+            error_str = str(e)
+            if "SyntaxError" in error_str and "Invalid input" in error_str:
+                logger.warning(
+                    f"Cypher generation failed (likely LLM output natural text instead of query)."
+                )
+                return "Could not query the architecture: The query was too vague or unrelated to the graph structure, so the system failed to generate a valid database query. Try asking more specifically about file dependencies, imports, or modules."
+
+            logger.error(f"Error in ask_architecture: {e}")
+            return f"Error in ask_architecture: {e}"
 
     try:
         mcp_tools = await get_mcp_tools(user_id)
@@ -417,14 +349,11 @@ async def make_tools(
         mcp_tools = []
 
     return [
-        search_documents,
         get_project_context,
         get_project_hierarchy,
+        get_dir_context,
         get_file_context,
-        read_file_content,
-        get_specific_code,
-        search_code,
-        query_dependencies,
+        get_source_code,
         ask_architecture,
         DuckDuckGoSearchRun(),
     ] + mcp_tools

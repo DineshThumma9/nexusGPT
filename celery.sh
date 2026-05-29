@@ -1,5 +1,6 @@
+#!/bin/bash
 
-echo "celery"
+echo "Starting Celery worker"
 cd backend
-source .venv/bin/activate
-uv run celery -A src.service.worker.queue worker --loglevel=info 
+set -a && source .env.dev && set +a
+uv run celery -A src.service.tasks.queue worker --loglevel=info
