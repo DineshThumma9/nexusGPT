@@ -332,6 +332,20 @@ const useMessage = () => {
                         type: "error",
                         duration: 5000,
                       });
+                    } else if (
+                      errorStr.includes("400") ||
+                      errorStr.includes("Bad Request") ||
+                      errorStr.includes("does not support") ||
+                      errorStr.includes("tool calling")
+                    ) {
+                      errorBubbleMessage =
+                        "The selected model does not support the required features (such as tool calling). Please select a different model.";
+                      toaster.create({
+                        title: "Model Not Supported",
+                        description: "Please select a different AI model.",
+                        type: "error",
+                        duration: 5000,
+                      });
                     } else {
                       // Fallback for other errors, try to keep it somewhat clean
                       errorBubbleMessage = `[Error: ${errorStr.substring(0, 150)}${errorStr.length > 150 ? "..." : ""}]`;
