@@ -273,8 +273,79 @@ const useMessage = () => {
 
                   case "error":
                     console.error("Stream error:", data.content);
+
+                    let errorBubbleMessage =
+                      "An unexpected error occurred during generation.";
+
+                    // Parse common LLM provider errors (like Gemini 429) out of the raw LangChain error string
+                    const errorStr = String(data.content);
+
+                    if (
+                      errorStr.includes("429") ||
+                      errorStr.includes("Too Many Requests") ||
+                      errorStr.includes("RESOURCE_EXHAUSTED")
+                    ) {
+                      errorBubbleMessage =
+                        "Rate limit exceeded. Please wait a moment before sending another message.";
+                      toaster.create({
+                        title: "Too Many Requests",
+                        description:
+                          "You have exceeded your AI provider's rate limit or quota.",
+                        type: "error",
+                        duration: 5000,
+                      });
+                    } else if (
+                      errorStr.includes("401") ||
+                      errorStr.includes("authentication") ||
+                      errorStr.includes("Unauthorized")
+                    ) {
+                      errorBubbleMessage =
+                        "Authentication failed with the AI provider. Please check your API keys.";
+                      toaster.create({
+                        title: "Authentication Failed",
+                        description: "Please check your AI provider API keys.",
+                        type: "error",
+                        duration: 5000,
+                      });
+                    } else if (
+                      errorStr.includes("402") ||
+                      errorStr.includes("Payment Required")
+                    ) {
+                      errorBubbleMessage =
+                        "Payment is required by the AI provider. You may have exceeded your quota or need to update your billing details.";
+                      toaster.create({
+                        title: "Payment Required",
+                        description:
+                          "You have exceeded your quota or need to update your payment details.",
+                        type: "error",
+                        duration: 5000,
+                      });
+                    } else if (
+                      errorStr.includes("413") ||
+                      errorStr.includes("Payload Too Large")
+                    ) {
+                      errorBubbleMessage =
+                        "The request or attachment was too large for the AI provider to process.";
+                      toaster.create({
+                        title: "Payload Too Large",
+                        description: "The request or attachment was too large.",
+                        type: "error",
+                        duration: 5000,
+                      });
+                    } else {
+                      // Fallback for other errors, try to keep it somewhat clean
+                      errorBubbleMessage = `[Error: ${errorStr.substring(0, 150)}${errorStr.length > 150 ? "..." : ""}]`;
+                      toaster.create({
+                        title: "Streaming Error",
+                        description:
+                          "The AI provider encountered an error while generating the response.",
+                        type: "error",
+                        duration: 5000,
+                      });
+                    }
+
                     updateMessage(assistantMsgId, {
-                      content: `[Error: ${data.content}]`,
+                      content: errorBubbleMessage,
                       isStreaming: false,
                     });
                     isStreamComplete = true;

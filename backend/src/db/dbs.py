@@ -78,7 +78,6 @@ def create_all_tables():
         logger.error(f"Error creating tables: {str(e)}")
         # Don't raise - let the app start even if table creation fails
         logger.warning("Continuing startup despite table creation failure")
-        raise
 
 
 async def init_checkpointer():
