@@ -12,7 +12,13 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.requests import Request
 
-from src.db.dbs import close_checkpointer, create_all_tables, init_checkpointer
+from src.db import dbs
+from src.db.dbs import (
+    _init_db,
+    close_checkpointer,
+    create_all_tables,
+    init_checkpointer,
+)
 from src.db.qdrant_client import init_qdrant
 from src.router import (
     auth_router,
@@ -58,14 +64,32 @@ else:
 # ---------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_all_tables()
+    # 1. Init engines and create tables — must be first
+    _init_db()
+    await create_all_tables()
+
+    # 2. Warm up the async connection pool so the first real request
+    #    doesn't pay the TCP handshake + pool-init cost (~500ms)
+    try:
+        from sqlalchemy import text
+        async with dbs.async_engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Async DB pool warmed up")
+    except Exception as e:
+        logger.warning(f"DB pool warmup failed (non-fatal): {e}")
+
+    # 3. LangGraph checkpointer
     await init_checkpointer()
+
+    # 4. Qdrant collections
     try:
         await init_qdrant()
         logger.info("Qdrant initialized and collections verified")
     except Exception as e:
         logger.error(f"Failed to initialize Qdrant collections: {e}")
+
     yield
+
     await close_checkpointer()
 
 

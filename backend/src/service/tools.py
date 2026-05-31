@@ -16,11 +16,13 @@ from langchain_neo4j import GraphCypherQAChain, Neo4jGraph
 from loguru import logger
 from qdrant_client.http import models
 from sqlmodel import Session
-
+from sqlalchemy import select
+import asyncio
 from src.db.dbs import get_db
-from src.db.redis_client import redis_client
+from src.db.redis_client import aredis as redis_client
 from src.models.models import UserMCPConfig
 from src.service.utils import decrypt
+from src.models.models import User
 
 Groq = ChatGroq
 
@@ -43,8 +45,9 @@ async def get_mcp_tools(user_id):
             end = time.time()
             logger.info(f"Retrieved MCP configs from Redis in {end - start} seconds")
         else:
-            for db in get_db():
-                configs = db.query(UserMCPConfig).filter_by(user_id=user_id).all()
+            async for db in get_db():
+                result = await db.execute(select(UserMCPConfig).where(UserMCPConfig.user_id == user_id))
+                configs = result.scalars().all()
 
             if not configs:
                 return []
@@ -89,7 +92,6 @@ async def get_mcp_tools(user_id):
         logger.info("Loading MCP tools...")
 
         start = time.time()
-        import asyncio
 
         # Load tools concurrently but handle exceptions gracefully so one bad server doesn't crash all
         tasks = []

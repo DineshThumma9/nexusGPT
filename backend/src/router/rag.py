@@ -6,10 +6,10 @@ from typing import List
 import requests
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from loguru import logger
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from src.db.dbs import get_db
-from src.db.redis_client import redis_client
+from src.db.redis_client import aredis as redis_client
 from src.models.enums import KBSourceType, KBStatus
 from src.models.models import KnowledgeBase, User
 from src.models.schema import GitRequest, GitSpec
@@ -22,46 +22,39 @@ from src.service.utils import get_dir_struct
 
 router = APIRouter()
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
-UPLOADS_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "uploads")
-os.makedirs(UPLOADS_DIR, exist_ok=True)
+# CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
+# UPLOADS_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "uploads")
+# os.makedirs(UPLOADS_DIR, exist_ok=True)
+import httpx
 
 
-def validate_and_get_commit_sha(req: GitRequest) -> tuple[str, str]:
+async def validate_and_get_commit_sha(req: GitRequest) -> tuple[str, str]:
     """
     Validates the GitHub repository, finds the appropriate branch/commit,
     and returns the commit SHA and resolved branch/ref.
     """
     headers = {}
-    github_token = os.getenv("GITHUB_TOKEN")
+    github_token = req.token or os.getenv("GITHUB_TOKEN")
     if github_token:
         headers["Authorization"] = f"token {github_token}"
 
-    ref = req.commit or req.branch or "HEAD"
-    resp = requests.get(
-        f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
-        headers=headers,
-    )
-
-    # If ref not found (branch name wrong / repo uses 'master' not 'main'),
-    # fall back to the repo's actual default branch automatically.
-    if resp.status_code in (404, 422) and not req.commit:
-        repo_meta = requests.get(
+    async with httpx.AsyncClient() as client:
+        # Fetch repo metadata once — gives us default_branch for free
+        meta = await client.get(
             f"https://api.github.com/repos/{req.owner}/{req.repo}",
             headers=headers,
         )
-        if repo_meta.status_code == 404:
+        if meta.status_code == 404:
             raise HTTPException(
                 status_code=400,
                 detail=f"Repository '{req.owner}/{req.repo}' not found or not accessible.",
             )
-        default_branch = repo_meta.json().get("default_branch", "HEAD")
-        logger.info(
-            f"Branch '{ref}' not found — falling back to default branch '{default_branch}'"
-        )
-        ref = default_branch
-        resp = requests.get(
+        meta.raise_for_status()
+
+        ref = req.commit or req.branch or meta.json()["default_branch"]
+
+        resp = await client.get(
             f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
             headers=headers,
         )
@@ -86,7 +79,7 @@ async def git_rag(
     user: User = Depends(get_current_user),
 ):
     """Triggers the background ingestion of a Git repository via Celery."""
-    sha, ref = validate_and_get_commit_sha(req)
+    sha, ref = await validate_and_get_commit_sha(req)
 
     # Override the frontend's kb_id with a deterministic UUID based on the SHA
     kb_id = str(uuid.uuid5(uuid.NAMESPACE_OID, sha))
@@ -97,7 +90,7 @@ async def git_rag(
 
     logger.info(f"Owner:{req.owner}  Repo:{req.repo} req:{req}")
 
-    kb = ensure_kb(
+    kb = await ensure_kb(
         kb_id=kb_id,
         session_id=session_id,
         db=db,
@@ -153,7 +146,7 @@ async def get_rag(
 
     source_ref = ",".join([f.filename for f in files if f.filename])
 
-    ensure_kb(
+    await ensure_kb(
         kb_id=kb_id,
         session_id=session_id,
         db=db,
@@ -195,7 +188,7 @@ async def get_rag(
 @router.post("/tree")
 async def get_tree(reques: GitSpec):
     logger.info(f"Directory structure request received: {reques}")
-    tree = get_dir_struct(reques)
+    tree = await get_dir_struct(reques)
     return tree
 
 
@@ -231,7 +224,8 @@ async def get_status(
                 return {"status": "processing", "detail": status_val, "kb_id": kb_id}
 
         # Fallback to Postgres
-        kb = db.query(KnowledgeBase).filter_by(kb_id=kb_id).first()
+        result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.kb_id == kb_id))
+        kb = result.scalars().first()
         if kb:
             # Handle DB status enum cleanly
             status_str = (

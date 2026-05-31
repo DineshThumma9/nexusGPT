@@ -97,7 +97,7 @@ const Response = () => {
       {messages.length === 0 && !isWaitingForIndexing ? (
         <EmptyState />
       ) : (
-        <Box w="full" py={6}>
+        <Box w="full" pt={{ base: 24, md: 20 }} pb={6}>
           <VStack {...vstack}>
             <AnimatePresence initial={false}>
               {messages.map((msg, idx) => (

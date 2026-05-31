@@ -10,6 +10,7 @@ import {
   Portal,
   useSlotRecipe,
   VStack,
+  Flex,
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { v4 } from "uuid";
@@ -384,7 +385,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                     </InputGroup>
 
                     {/* Owner and Repository */}
-                    <HStack gap={4}>
+                    <Flex direction={{ base: "column", md: "row" }} gap={4} w="full">
                       <Field.Root flex={1}>
                         <Field.Label
                           color="fg"
@@ -435,10 +436,10 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                           {...inputStyles}
                         />
                       </Field.Root>
-                    </HStack>
+                    </Flex>
 
                     {/* Branch and Commit */}
-                    <HStack gap={4}>
+                    <Flex direction={{ base: "column", md: "row" }} gap={4} w="full">
                       <Field.Root flex={1}>
                         <Field.Label
                           color="white"
@@ -469,7 +470,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                           {...inputStyles}
                         />
                       </Field.Root>
-                    </HStack>
+                    </Flex>
 
                     {/* Private GitHub Token */}
                     <Field.Root>
@@ -494,9 +495,10 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                 )}
               </Dialog.Body>
 
-              <Dialog.Footer {...dialogFooter}>
+              <Dialog.Footer {...dialogFooter} flexDirection={{ base: "column", sm: "row" }} flexWrap="wrap">
                 <Dialog.ActionTrigger asChild>
                   <Button
+                    w={{ base: "full", sm: "auto" }}
                     variant="ghost"
                     color={"fg"}
                     borderRadius="xl"
@@ -510,6 +512,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                 </Dialog.ActionTrigger>
 
                 <Button
+                  w={{ base: "full", sm: "auto" }}
                   bg="brand.600"
                   color="white"
                   borderRadius="xl"
@@ -536,6 +539,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
 
                 {!explorer && (
                   <Button
+                    w={{ base: "full", sm: "auto" }}
                     variant="outline"
                     borderColor="brand.500"
                     color="brand.600"

@@ -135,16 +135,16 @@ const ApiKeysPage = () => {
   };
 
   return (
-    <Box minH="100vh" bg="bg.canvas" py={8} px={{ base: 4, md: 8, lg: 12 }}>
+    <Box minH="100vh" bg="bg.canvas" py={{ base: 4, md: 8 }} px={{ base: 4, md: 8, lg: 12 }}>
       <Container maxW="7xl" p={0}>
         {/* Header */}
         <HStack
-          mb={8}
+          mb={{ base: 4, md: 8 }}
           justify="space-between"
           align="center"
           borderBottom="1px solid"
           borderColor="border.subtle"
-          pb={6}
+          pb={{ base: 4, md: 6 }}
         >
           <HStack gap={4}>
             <IconButton
@@ -185,7 +185,7 @@ const ApiKeysPage = () => {
 
                 {keys.length === 0 ? (
                   <Box
-                    p={12}
+                    p={{ base: 6, md: 12 }}
                     bg="bg.panel"
                     borderRadius="2xl"
                     border="1px dashed"
@@ -209,7 +209,7 @@ const ApiKeysPage = () => {
                     {keys.map((config) => (
                       <Box
                         key={config.provider}
-                        p={6}
+                        p={{ base: 4, md: 6 }}
                         bg="bg.panel"
                         borderRadius="2xl"
                         border="1px solid"
@@ -310,7 +310,7 @@ const ApiKeysPage = () => {
             {/* Right Side: Add / Update Form (4 columns) */}
             <GridItem colSpan={{ base: 12, lg: 4 }}>
               <Box
-                p={6}
+                p={{ base: 4, md: 6 }}
                 bg="bg.panel"
                 borderRadius="2xl"
                 border="1px solid"

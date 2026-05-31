@@ -9,7 +9,8 @@ from jose import jwt
 from jose.exceptions import JWTError
 from loguru import logger
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from src.db.dbs import get_db
 from src.models.models import APIKEYS, RefreshToken, User
@@ -27,7 +28,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 async def get_current_user(
-    token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    token: str | None = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
 ):
     credentials_exception = HTTPException(
         status_code=401,
@@ -35,13 +36,6 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     if not token:
-        # Fallback to guest user in development/testing mode
-        guest_user = db.query(User).first()
-        if guest_user:
-            logger.warning(
-                f"No token provided. Dev mode: using guest user '{guest_user.email}'"
-            )
-            return guest_user
         raise credentials_exception
 
     try:
@@ -50,21 +44,16 @@ async def get_current_user(
         if email is None:
             raise credentials_exception
     except JWTError:
-        guest_user = db.query(User).first()
-        if guest_user:
-            logger.warning(
-                f"Invalid token. Dev mode: using guest user '{guest_user.email}'"
-            )
-            return guest_user
         raise credentials_exception
 
-    user = db.query(User).filter(User.email == email).first()
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
     if user is None:
         raise credentials_exception
     return user
 
 
-def create_tokens(data: dict, db: Session):
+async def create_tokens(data: dict, db: AsyncSession):
     now = datetime.datetime.utcnow()
 
     access_payload = data.copy()
@@ -91,9 +80,9 @@ def create_tokens(data: dict, db: Session):
 
     try:
         db.add(db_token)
-        db.commit()
+        await db.commit()
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.exception(f"Failed to store refresh token in DB {e} {e.__class__}")
         return JSONResponse(content={"detail": "Database error"}, status_code=500)
 
@@ -101,6 +90,7 @@ def create_tokens(data: dict, db: Session):
     return JSONResponse(content=tokens.model_dump(), status_code=200)
 
 
-def get_all_api_keys(user=Depends(get_current_user), db=Depends(get_db)):
-    api_val_keys = db.query(APIKEYS).filter(APIKEYS.user_id == user.userid).all()
+async def get_all_api_keys(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(APIKEYS).where(APIKEYS.user_id == user.userid))
+    api_val_keys = result.scalars().all()
     return {entry.provider: entry.encrypted_key for entry in api_val_keys}

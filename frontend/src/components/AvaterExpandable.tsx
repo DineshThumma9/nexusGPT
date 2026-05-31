@@ -120,104 +120,106 @@ const AvaterExpandable = () => {
   };
 
   return (
-    <HStack pr={2}>
-      <Tooltip
-        content="Git Credentials"
-        positioning={{ placement: "bottom" }}
-        openDelay={400}
-      >
-        <IconButton
-          aria-label="Git Credentials"
-          onClick={() => setDialog(true)}
-          size="md"
-          variant="ghost"
-          bg="transparent"
-          color={{ base: "brand.700", _dark: "brand.600" }}
-          transition="all 0.2s ease"
-          _hover={{
-            bg: { base: "brand.50", _dark: "brand.950" },
-            color: { base: "brand.800", _dark: "brand.500" },
-            transform: "scale(1.05)",
-          }}
-          _active={{
-            bg: { base: "brand.100", _dark: "brand.900" },
-            transform: "scale(0.95)",
-          }}
+    <HStack pr={{ base: 1, md: 2 }} gap={{ base: 1, md: 1 }}>
+      <HStack gap={1}>
+        <Tooltip
+          content="Git Credentials"
+          positioning={{ placement: "bottom" }}
+          openDelay={400}
         >
-          <GitBranch size={16} />
-        </IconButton>
-      </Tooltip>
+          <IconButton
+            aria-label="Git Credentials"
+            onClick={() => setDialog(true)}
+            size={{ base: "sm", md: "md" }}
+            variant="ghost"
+            bg="transparent"
+            color={{ base: "brand.700", _dark: "brand.600" }}
+            transition="all 0.2s ease"
+            _hover={{
+              bg: { base: "brand.50", _dark: "brand.950" },
+              color: { base: "brand.800", _dark: "brand.500" },
+              transform: "scale(1.05)",
+            }}
+            _active={{
+              bg: { base: "brand.100", _dark: "brand.900" },
+              transform: "scale(0.95)",
+            }}
+          >
+            <GitBranch size={16} />
+          </IconButton>
+        </Tooltip>
 
-      <Tooltip
-        content="API Key Settings"
-        positioning={{ placement: "bottom" }}
-        openDelay={400}
-      >
-        <IconButton
-          aria-label="API Settings"
-          onClick={() => navigate("/app/api-keys")}
-          size="md"
-          variant="ghost"
-          bg="transparent"
-          color={{ base: "brand.700", _dark: "brand.600" }}
-          transition="all 0.2s ease"
-          _hover={{
-            bg: { base: "brand.50", _dark: "brand.950" },
-            color: { base: "brand.800", _dark: "brand.500" },
-            transform: "scale(1.05)",
-          }}
-          _active={{
-            bg: { base: "brand.100", _dark: "brand.900" },
-            transform: "scale(0.95)",
-          }}
+        <Tooltip
+          content="API Key Settings"
+          positioning={{ placement: "bottom" }}
+          openDelay={400}
         >
-          <FiSettings size={16} />
-        </IconButton>
-      </Tooltip>
+          <IconButton
+            aria-label="API Settings"
+            onClick={() => navigate("/app/api-keys")}
+            size={{ base: "sm", md: "md" }}
+            variant="ghost"
+            bg="transparent"
+            color={{ base: "brand.700", _dark: "brand.600" }}
+            transition="all 0.2s ease"
+            _hover={{
+              bg: { base: "brand.50", _dark: "brand.950" },
+              color: { base: "brand.800", _dark: "brand.500" },
+              transform: "scale(1.05)",
+            }}
+            _active={{
+              bg: { base: "brand.100", _dark: "brand.900" },
+              transform: "scale(0.95)",
+            }}
+          >
+            <FiSettings size={16} />
+          </IconButton>
+        </Tooltip>
 
-      <Tooltip
-        content={
-          mcpError ? "MCP config error — click to fix" : "MCP Server Config"
-        }
-        positioning={{ placement: "bottom" }}
-        openDelay={400}
-      >
-        <IconButton
-          aria-label="MCP Config"
-          onClick={() => {
-            setMcpDialogOpen(true);
-            setMcpError(false); // clear error when user re-opens
-          }}
-          size="md"
-          variant="ghost"
-          bg="transparent"
-          color={
-            mcpError ? "red.500" : { base: "brand.700", _dark: "brand.600" }
+        <Tooltip
+          content={
+            mcpError ? "MCP config error — click to fix" : "MCP Server Config"
           }
-          border={mcpError ? "2px solid" : "2px solid transparent"}
-          borderColor={mcpError ? "red.500" : "transparent"}
-          borderRadius="md"
-          transition="all 0.2s ease"
-          title={mcpError ? "MCP config error — click to fix" : "MCP Config"}
-          _hover={{
-            bg: mcpError
-              ? { base: "red.50", _dark: "red.950" }
-              : { base: "brand.50", _dark: "brand.950" },
-            color: mcpError
-              ? "red.600"
-              : { base: "brand.800", _dark: "brand.500" },
-            transform: "scale(1.05)",
-          }}
-          _active={{
-            bg: mcpError
-              ? { base: "red.100", _dark: "red.900" }
-              : { base: "brand.100", _dark: "brand.900" },
-            transform: "scale(0.95)",
-          }}
+          positioning={{ placement: "bottom" }}
+          openDelay={400}
         >
-          <FiFileText size={16} />
-        </IconButton>
-      </Tooltip>
+          <IconButton
+            aria-label="MCP Config"
+            onClick={() => {
+              setMcpDialogOpen(true);
+              setMcpError(false);
+            }}
+            size={{ base: "sm", md: "md" }}
+            variant="ghost"
+            bg="transparent"
+            color={
+              mcpError ? "red.500" : { base: "brand.700", _dark: "brand.600" }
+            }
+            border={mcpError ? "2px solid" : "2px solid transparent"}
+            borderColor={mcpError ? "red.500" : "transparent"}
+            borderRadius="md"
+            transition="all 0.2s ease"
+            title={mcpError ? "MCP config error — click to fix" : "MCP Config"}
+            _hover={{
+              bg: mcpError
+                ? { base: "red.50", _dark: "red.950" }
+                : { base: "brand.50", _dark: "brand.950" },
+              color: mcpError
+                ? "red.600"
+                : { base: "brand.800", _dark: "brand.500" },
+              transform: "scale(1.05)",
+            }}
+            _active={{
+              bg: mcpError
+                ? { base: "red.100", _dark: "red.900" }
+                : { base: "brand.100", _dark: "brand.900" },
+              transform: "scale(0.95)",
+            }}
+          >
+            <FiFileText size={16} />
+          </IconButton>
+        </Tooltip>
+      </HStack>
 
       <Tooltip
         content="Toggle Light / Dark Mode"

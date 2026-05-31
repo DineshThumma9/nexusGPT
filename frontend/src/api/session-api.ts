@@ -7,7 +7,7 @@ import useInitStore from "../store/initStore.ts";
 
 export const apiKeySelection = async (api_prov: string, api_key: string) => {
   const data = {
-    api_prov: api_prov,
+    api_provider: api_prov,
     api_key: api_key,
   };
 
@@ -37,10 +37,10 @@ export const llmSelection = async (providerId: string) => {
   );
 };
 
-export const modelSelection = async (model: string) => {
+export const modelSelection = async (model: string, provider: string) => {
   await setupAPI.post(
     `/models`,
-    { model: model },
+    { model: model, provider: provider },
     {
       headers: { "Content-Type": "application/json" },
     },

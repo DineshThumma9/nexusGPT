@@ -60,7 +60,8 @@ const TypingIndicator = () => (
 const box = () => ({
   w: "full",
   bg: "transparent",
-  p: 4,
+  px: { base: 2, md: 4 },
+  py: { base: 2, md: 4 },
   position: "relative" as const,
 });
 
@@ -68,9 +69,9 @@ const hstack = () => ({
   alignItems: "flex-end",
   borderColor: "glass.border",
   borderRadius: "3xl",
-  px: 6,
-  py: 4,
-  gap: 4,
+  px: { base: 3, md: 6 },
+  py: { base: 3, md: 4 },
+  gap: { base: 2, md: 4 },
   bg: "glass.bg",
   backdropFilter: "blur(24px)",
   border: "1px solid",

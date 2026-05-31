@@ -7,7 +7,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt
 from jose.exceptions import ExpiredSignatureError, JWTError
 from loguru import logger
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from src.db.dbs import get_db
 from src.models.models import RefreshToken, User
@@ -23,10 +24,11 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=Token)
-def register(user: UserPayload, db: Session = Depends(get_db)):
-    logger.info("Accessing register")
-    logger.info(user)
-    existing_user = db.query(User).filter(User.email == user.email).first()
+async def register(user: UserPayload, db: AsyncSession = Depends(get_db)):
+
+
+    result = await db.execute(select(User).where(User.email == user.email))
+    existing_user = result.scalars().first()
     if existing_user:
         return JSONResponse(
             content={"detail": "Email already registered"}, status_code=400
@@ -41,10 +43,10 @@ def register(user: UserPayload, db: Session = Depends(get_db)):
 
     try:
         db.add(new_user)
-        db.commit()
-        return create_tokens({"sub": user.email}, db)
+        await db.commit()
+        return await create_tokens({"sub": user.email}, db)
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.exception("User registration failed")
         return JSONResponse(
             content={"detail": f"Registration failed: {str(e)}"}, status_code=500
@@ -53,9 +55,10 @@ def register(user: UserPayload, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+    form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
 ):
-    user = db.query(User).filter(User.username == form_data.username).first()
+    result = await db.execute(select(User).where(User.username == form_data.username))
+    user = result.scalars().first()
 
     hash_password = hashlib.sha256(form_data.password.encode("utf-8")).hexdigest()
 
@@ -64,22 +67,23 @@ async def login(
     ):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    return create_tokens({"sub": user.email}, db)
+    return await create_tokens({"sub": user.email}, db)
 
 
 @router.post("/refresh", response_model=Token)
-def refresh_token(refresh: str = Form(...), db: Session = Depends(get_db)):
+async def refresh_token(refresh: str = Form(...), db: AsyncSession = Depends(get_db)):
     try:
         payload = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
         if not email:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-        db_token = db.query(RefreshToken).filter(RefreshToken.token == refresh).first()
+        result = await db.execute(select(RefreshToken).where(RefreshToken.token == refresh))
+        db_token = result.scalars().first()
         if not db_token:
             raise HTTPException(status_code=401, detail="Refresh token not found")
 
-        return create_tokens({"sub": email}, db)
+        return await create_tokens({"sub": email}, db)
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except JWTError:

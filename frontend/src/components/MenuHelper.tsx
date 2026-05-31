@@ -79,11 +79,18 @@ const MenuHelper = ({
   return (
     <Menu.Root>
       <MenuTrigger asChild>
-        <Button css={{ menuHelper: {} }} disabled={disabled}>
+        <Button
+          css={{ menuHelper: {} }}
+          disabled={disabled}
+          size={{ base: "xs", md: "sm" }}
+          fontSize={{ base: "11px", md: "sm" }}
+          px={{ base: 2, md: 3 }}
+          h={{ base: "28px", md: "32px" }}
+        >
           {displaySelected.length > 25
             ? displaySelected.slice(0, 25) + "..."
             : displaySelected}
-          <ChevronDownIcon />
+          <ChevronDownIcon style={{ width: "14px", height: "14px" }} />
         </Button>
       </MenuTrigger>
 

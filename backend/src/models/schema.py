@@ -42,9 +42,13 @@ class Token(BaseModel):
 
 
 class API_KEY_REQUEST(BaseModel):
-    api_prov: str
+    api_provider: str
     api_key: str
 
+
+class API_KEY_RESPONSE(BaseModel):
+    provider:str
+    encrypted_key:str
 
 class TitleUpdateRequest(BaseModel):
     title: str
@@ -62,11 +66,11 @@ class SessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID = Field(validation_alias=AliasChoices("id", "session_id"))
     session_id: UUID
-    title: str
-    kb_id: UUID | None = None
+    title: str = Field(default="New Chat")
+    kb_id: UUID | None = None 
     source_type: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class GitSpec(BaseModel):

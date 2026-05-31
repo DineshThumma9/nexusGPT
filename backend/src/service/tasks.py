@@ -23,7 +23,7 @@ from src.db.qdrant_client import (
     _get_sync_client,
     get_embeddings,
 )
-from src.db.redis_client import redis
+from src.db.redis_client import sredis as redis
 from src.models.enums import KBStatus
 from src.models.models import Message
 from src.models.models import Session as SessionModel
@@ -241,95 +241,6 @@ def ingest_pdf_task(
         )
         update_kb(kb_id=kb_id, status=KBStatus.FAILED)
         raise e
-
-
-@queue.task(time_limit=90)
-def write_new_session(session_id: str, user_id: str):
-
-    dbs._init_db()
-
-    db = dbs.SessionLocal()
-    try:
-        new_session = SessionModel(
-            user_id=UUID(user_id),
-            session_id=UUID(session_id),
-            title="New Chat",
-            model="default",
-        )
-        db.add(new_session)
-        db.commit()
-        redis.delete(f"user:{user_id}:sessions")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to save new session: {str(e)}")
-    finally:
-        db.close()
-
-
-@queue.task(time_limit=60)
-def write_session(
-    session_id: str, title: str, user_id: str
-):  # FIXED: Changed from 'async def' to standard 'def'
-
-    dbs._init_db()
-    db = dbs.SessionLocal()
-    try:
-        session_uuid = UUID(session_id)
-        session_query = select(SessionModel).where(
-            SessionModel.session_id == session_uuid
-        )
-        session = db.execute(session_query).scalars().first()
-
-        if session:
-            session.title = title
-            session.updated_at = datetime.utcnow()
-            db.add(session)
-            db.commit()
-
-            logger.info(f"Updated title for session {session.session_id}: {title}")
-            redis.delete(f"user:{user_id}:sessions")
-        else:
-            logger.warning(f"Session {session_id} not found for title update")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error updating session title: {str(e)}")
-    finally:
-        db.close()
-    # FIXED: Removed the duplicate, unprotected logger.info from down here
-
-
-@queue.task(time_limit=120)
-def delete_session_background(session_id: str, user_id: str):
-
-    dbs._init_db()
-
-    db = dbs.SessionLocal()
-    sid = UUID(session_id)
-    try:
-        # 1. Delete all Messages linked to it
-        msg_stmt = select(Message).where(Message.session_id == sid)
-        messages = db.execute(msg_stmt).scalars().all()
-        for m in messages:
-            db.delete(m)
-
-        # 2. Delete the Session row itself
-        session_stmt = select(SessionModel).where(SessionModel.session_id == sid)
-        session_row = db.execute(session_stmt).scalars().first()
-        if session_row:
-            db.delete(session_row)
-
-        db.commit()
-
-        # 3. Redis cleanup
-        redis.delete(f"sessions:{session_id}")
-        redis.delete(f"user:{user_id}:sessions")
-        logger.info(f"Successfully deleted session data and cache for {session_id}")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error during background session deletion: {str(e)}")
-    finally:
-        db.close()
-    return True
 
 
 @queue.task(time_limit=60)

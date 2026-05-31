@@ -29,7 +29,7 @@ class Session(SQLModel, table=True):
     kb_id: Optional[UUID] = Field(
         default=None, foreign_key="knowledge_bases.kb_id", index=True
     )
-    title: str
+    title: str = Field(default="New Chat")
     model: str
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)

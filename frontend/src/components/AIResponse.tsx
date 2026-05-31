@@ -8,9 +8,12 @@ import {
   Skeleton,
   SkeletonText,
   VStack,
+  Collapsible,
+  Text,
 } from "@chakra-ui/react";
 import { Tooltip } from "./ui/tooltip";
 import { LuCheck, LuCopy } from "react-icons/lu";
+import { FiChevronDown, FiCpu } from "react-icons/fi";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -99,11 +102,40 @@ const AIResponse = ({ msg, idx }: Props) => {
     [msg.isStreaming, isStreaming, isLastMessage],
   );
 
-  const cleanContent = useMemo(() => {
-    if (!displayed) return "";
+  const { thinkingContent, responseContent, hasThinking } = useMemo(() => {
+    if (!displayed) return { thinkingContent: "", responseContent: "", hasThinking: false };
 
     const sourcesRegex = /\n\n📚 \*\*Sources:\*\*\n[\s\S]*$/;
-    return displayed.replace(sourcesRegex, "");
+    const cleanStr = displayed.replace(sourcesRegex, "");
+    
+    let thinking = "";
+    let response = cleanStr;
+    let hasThinking = false;
+
+    const thinkStart = cleanStr.indexOf("<thinking>");
+    if (thinkStart !== -1) {
+      hasThinking = true;
+      const thinkEnd = cleanStr.indexOf("</thinking>");
+      if (thinkEnd !== -1) {
+        thinking = cleanStr.substring(thinkStart + 10, thinkEnd).trim();
+        response = cleanStr.substring(thinkEnd + 11).trim();
+      } else {
+        thinking = cleanStr.substring(thinkStart + 10).trim();
+        response = "";
+      }
+    }
+    
+    const respStart = response.indexOf("<response>");
+    if (respStart !== -1) {
+      const respEnd = response.indexOf("</response>");
+      if (respEnd !== -1) {
+        response = response.substring(respStart + 10, respEnd).trim();
+      } else {
+        response = response.substring(respStart + 10).trim();
+      }
+    }
+
+    return { thinkingContent: thinking, responseContent: response, hasThinking };
   }, [displayed]);
 
   useEffect(() => {
@@ -147,15 +179,55 @@ const AIResponse = ({ msg, idx }: Props) => {
                 },
               }}
             >
-              {cleanContent ? (
+              {displayed ? (
                 <>
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
-                    rehypePlugins={[rehypeHighlight]}
-                    components={markdownComponents}
-                  >
-                    {cleanContent}
-                  </ReactMarkdown>
+                  {hasThinking && (
+                    <Box mb={4}>
+                      <Collapsible.Root defaultOpen={isCurrentlyStreaming}>
+                        <Collapsible.Trigger asChild>
+                          <HStack 
+                            cursor="pointer" 
+                            color="fg.muted" 
+                            fontSize="sm" 
+                            fontWeight="medium"
+                            _hover={{ color: "fg.default" }}
+                            transition="color 0.2s"
+                            mb={1}
+                          >
+                            <FiCpu />
+                            <Text>Thought Process</Text>
+                            <FiChevronDown />
+                          </HStack>
+                        </Collapsible.Trigger>
+                        <Collapsible.Content>
+                          <Box 
+                            pl={4} 
+                            py={2} 
+                            borderLeft="2px solid" 
+                            borderColor="border.subtle"
+                            color="fg.muted"
+                            fontSize="sm"
+                            css={{
+                              fontStyle: "italic",
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word"
+                            }}
+                          >
+                            {thinkingContent}
+                          </Box>
+                        </Collapsible.Content>
+                      </Collapsible.Root>
+                    </Box>
+                  )}
+                  {responseContent && (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      rehypePlugins={[rehypeHighlight]}
+                      components={markdownComponents}
+                    >
+                      {responseContent}
+                    </ReactMarkdown>
+                  )}
                   {isCurrentlyStreaming && (
                     <Box
                       as="span"
@@ -198,7 +270,7 @@ const AIResponse = ({ msg, idx }: Props) => {
                   positioning={{ placement: "top" }}
                   openDelay={400}
                 >
-                  <Clipboard.Root value={cleanContent.trimEnd()}>
+                  <Clipboard.Root value={responseContent.trimEnd()}>
                     <Clipboard.Trigger asChild>
                       <IconButton
                         size="xs"

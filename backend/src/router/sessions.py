@@ -24,12 +24,9 @@ from src.models.schema import (
 )
 from src.router.auth import get_current_user
 from src.router.limiter import limiter
-from src.service.tasks import (
-    delete_session_background,
-    write_new_session,
-    write_session,
-)
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.service.utils import decode_cursor, encode_cursor
+from src.db.redis_client import aredis as redis
 
 
 class CreateSessionRequest(BaseModel):
@@ -56,13 +53,21 @@ async def create_new_session(
     db: DBSession = Depends(get_db),
 ):
     session_id = body.session_id if body and body.session_id else str(uuid.uuid4())
-    write_new_session.delay(session_id, str(user.userid))
-    return SessionResponse(
-        session_id=session_id,
-        title="New Chat",
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-    )
+    try:
+        new_session = SessionModel(
+            user_id=user.userid,
+            session_id=session_id,
+            title="New Chat",
+            model="default",
+        )
+        db.add(new_session)
+        await db.commit()
+        await db.refresh(new_session)
+        return new_session
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to save new session: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/history/{session_id}")
@@ -76,7 +81,9 @@ async def get_chat_history(
     response_format=PaginatedMessageResponse,
 ):
     """Get messages for a session. Pass `cursor` from previous response to load older messages."""
-    query = db.query(Message).filter(Message.session_id == session_id)
+    query = select(Message).where(Message.session_id == session_id)
+    result = await db.execute(query)
+    query = result.scalars().all()
 
     if cursor:
         timestamp, _id = decode_cursor(cursor)
@@ -124,6 +131,7 @@ async def update_session_title(
     session_id: str,
     body: TitleUpdateRequest,
     user: User = Depends(get_current_user),
+    db:AsyncSession =Depends(get_db),
 ):
     """Update session title"""
     try:
@@ -131,7 +139,28 @@ async def update_session_title(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID format")
 
-    write_session.delay(session_uuid, body.title, str(user.userid))
+    try:
+        session_uuid  = session_id
+        session_query = select(SessionModel).where(
+            SessionModel.session_id == session_uuid
+        )
+        result = await db.execute(session_query)
+        session = result.scalars().first()
+
+        if session:
+            session.title = body.title
+            session.updated_at = datetime.utcnow()
+            db.add(session)  # add() is always sync on AsyncSession
+            await db.commit()
+
+            logger.info(f"Updated title for session {session.session_id}: {body.title}")
+            await redis.delete(f"user:{user.userid}:sessions")
+        else:
+            logger.warning(f"Session {session_id} not found for title update")
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error updating session title: {str(e)}")
+
     return TitleResponse(title=body.title)
 
 
@@ -149,7 +178,7 @@ async def delete_session(
         raise HTTPException(400, "Invalid session ID format")
 
     stmt = select(SessionModel).where(SessionModel.session_id == sid)
-    result = db.execute(stmt)
+    result = await db.execute(stmt)
     session_row = result.scalars().first()
     if not session_row:
         raise HTTPException(404, "Session not found")
@@ -158,8 +187,30 @@ async def delete_session(
         raise HTTPException(403, "Not authorized to delete this session")
 
     # FIXED: keyword argument updated from 'user' to 'user_id' to match task signature
-    delete_session_background.delay(session_id=str(sid), user_id=str(user.userid))
+    try:
+        # 1. Delete all Messages linked to it
+        msg_stmt = select(Message).where(Message.session_id == sid)
+        result = await db.execute(msg_stmt)
+        messages = result.scalars().all()
+        for m in messages:
+            db.delete(m)
 
+        # 2. Delete the Session row itself
+        session_stmt = select(SessionModel).where(SessionModel.session_id == sid)
+        result = await db.execute(session_stmt)
+        session_row = result.scalars().first()
+        if session_row:
+            db.delete(session_row)
+
+        await db.commit()
+
+        # 3. Redis cleanup
+        await redis.delete(f"sessions:{session_id}")
+        await redis.delete(f"user:{user.userid}:sessions")
+        logger.info(f"Successfully deleted session data and cache for {session_id}")
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error during background session deletion: {str(e)}")
     return {"status": "success"}
 
 
@@ -204,8 +255,8 @@ async def get_all_sessions(
                 )
 
         query = query.order_by(SessionModel.updated_at.desc()).limit(limit + 1)
-        results = db.execute(query).all()
-
+        results = await db.execute(query)
+        results = results.all()  # .scalars() would drop the KnowledgeBase join column
         has_more = len(results) > limit
         page = results[:limit]
         next_cursor = None

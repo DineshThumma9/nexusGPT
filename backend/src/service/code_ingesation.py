@@ -24,7 +24,13 @@ from src.service.utils import (
     _unpack_compiled_object,
 )
 
+from src.service.constansts import *
+import httpx
+
 load_dotenv()
+
+
+client = httpx.AsyncClient()
 
 
 async def fetch_repo(req: GitRequest) -> List[Document]:
@@ -138,85 +144,6 @@ def build_hierarchy(documents: List[Document]) -> Dict[str, ProjectNode]:
     return enriched_docs
 
 
-# Always skip — pure noise
-ALWAYS_SKIP = {
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "poetry.lock",
-    "Cargo.lock",
-    "composer.lock",
-    "Gemfile.lock",
-    ".DS_Store",
-    "Thumbs.db",
-}
-
-# Skip these directory prefixes
-SKIP_DIRS = {
-    "dist/",
-    "build/",
-    "out/",
-    ".next/",
-    ".nuxt/",
-    "__pycache__/",
-    "node_modules/",
-    ".git/",
-    ".idea/",
-    ".vscode/",
-    "coverage/",
-    ".pytest_cache/",
-}
-
-# Skip these extensions
-SKIP_EXTENSIONS = {
-    ".min.js",
-    ".min.css",
-    ".bundle.js",
-    ".pyc",
-    ".pyo",
-    ".class",
-    ".o",
-    ".so",
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".ico",
-    ".svg",
-    ".woff",
-    ".woff2",
-    ".ttf",
-    ".eot",
-    ".zip",
-    ".tar",
-    ".gz",
-    ".rar",
-    ".mp4",
-    ".mp3",
-    ".wav",
-}
-
-# Parse these as plain text (skip tree-sitter, store as single chunk)
-PARSE_AS_TEXT = {
-    "package.json",
-    "tsconfig.json",
-    "tsconfig.base.json",
-    "vite.config.ts",
-    "vite.config.js",
-    "webpack.config.js",
-    "rollup.config.js",
-    "docker-compose.yml",
-    "docker-compose.yaml",
-    "Dockerfile",
-    ".env.example",
-    "requirements.txt",
-    "pyproject.toml",
-    "go.mod",
-    "Cargo.toml",
-    ".eslintrc.json",  # borderline but small
-}
-
-
 def classify_file(path: str) -> str:
     """Returns 'skip', 'text', or 'parse'"""
 
@@ -239,18 +166,6 @@ def classify_file(path: str) -> str:
         return "text"
 
     return "parse"
-
-
-CHUNK_SIZE_BY_LANGUAGE = {
-    "python": 1500,  # dense, functions self-contained
-    "javascript": 1500,  # components self-contained
-    "typescript": 1500,
-    "java": 2000,  # verbose, needs more context per chunk
-    "cpp": 2500,  # large functions, macros need context
-    "c": 2500,
-    "go": 1200,  # small functions by convention
-    "rust": 1800,
-}
 
 
 def get_chunk_size(lang_name: str) -> int:
@@ -451,7 +366,7 @@ def _insert_to_vectordb(kb_id, ast_docs):
         points=points,
         batch_size=batch_size,
         wait=False,
-        max_retries=3,
+        parallel=3,
     )
 
     end = time()
@@ -460,7 +375,7 @@ def _insert_to_vectordb(kb_id, ast_docs):
     )
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
+# @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
 def _insert_to_graphdb(
     kb_id,
     batch_directories,

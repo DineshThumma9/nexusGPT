@@ -163,12 +163,17 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
   };
 
   return (
-    <Box w={collapsed ? "50px" : "240px"} {...boxStyles}>
+    <Box
+      w={{ base: "full", md: collapsed ? "50px" : "240px" }}
+      {...boxStyles}
+      borderRight={{ base: "none", md: "1px solid" }}
+    >
       <Button
         width={collapsed ? "28px" : "40px"}
         height={collapsed ? "28px" : "40px"}
         onClick={handleToggle}
         aria-label="Toggle sidebar"
+        display={{ base: "none", md: "flex" }}
         {...collapsibleButtonStyles}
       >
         {collapsed ? <FiChevronRight /> : <FiChevronLeft />}

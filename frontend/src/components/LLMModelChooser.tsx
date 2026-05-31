@@ -15,10 +15,10 @@ import { RefreshCw } from "lucide-react";
 import { PROVIDERS_CONFIG, type ProviderID } from "../entities/Constants.ts";
 
 const hstack = {
-  gap: 3,
+  gap: { base: 1.5, md: 3 },
   flexWrap: "wrap",
   margin: "0px",
-  p: 2,
+  p: { base: 1.5, md: 2 },
   bg: "glass.bg",
   backdropFilter: "blur(12px)",
   borderRadius: "xl",
@@ -154,9 +154,9 @@ const LLMModelChooser = () => {
       }
 
       // 3. Sync Model if it exists
-      if (state.currentModel) {
+      if (state.currentModel && state.currentLLMProvider) {
         try {
-          await modelSelection(state.currentModel);
+          await modelSelection(state.currentModel, state.currentLLMProvider);
         } catch (error) {
           console.error("Failed to sync Model to backend on mount:", error);
         }
@@ -221,8 +221,12 @@ const LLMModelChooser = () => {
 
   const handleModelSelection = async (model: string) => {
     setCurrentModel(model);
+    if (!currentLLMProvider) {
+      console.warn("Cannot set model: no LLM provider selected");
+      return;
+    }
     try {
-      await modelSelection(model);
+      await modelSelection(model, currentLLMProvider);
     } catch (error) {
       console.error("Failed to set model:", error);
     }
@@ -289,12 +293,14 @@ const LLMModelChooser = () => {
           css={{
             borderRadius: "xl",
             color: "fg.muted",
-            minW: "40px",
-            h: "40px",
+            minW: { base: "28px", md: "32px" },
+            h: { base: "28px", md: "32px" },
             _hover: { bg: "whiteAlpha.100", color: "fg" },
             _active: { bg: "whiteAlpha.200" },
             "& svg": {
               animation: refreshing ? "spin 1s linear infinite" : "none",
+              width: { base: "14px", md: "16px" },
+              height: { base: "14px", md: "16px" },
             },
             "@keyframes spin": {
               "0%": { transform: "rotate(0deg)" },

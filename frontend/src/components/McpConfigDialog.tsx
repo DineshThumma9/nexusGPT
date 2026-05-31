@@ -14,6 +14,7 @@ import {
   CodeBlockAdapterProvider,
   createShikiAdapter,
   Separator,
+  Flex,
 } from "@chakra-ui/react";
 import { useState, useEffect } from "react";
 import { getMcpConfig, saveMcpConfig } from "../api/setup-api";
@@ -44,25 +45,25 @@ const shikiAdapter = createShikiAdapter<HighlighterGeneric<any, any>>({
 });
 
 const dialogHeader = {
-  p: 6,
-  pb: 4,
+  p: { base: 4, md: 6 },
+  pb: { base: 2, md: 4 },
 };
 
 const dialogBody = {
-  p: 6,
+  p: { base: 4, md: 6 },
   pt: 2,
   color: "fg",
 };
 
 const dialogFooter = {
-  p: 6,
-  pt: 4,
+  p: { base: 4, md: 6 },
+  pt: { base: 3, md: 4 },
   gap: 3,
 };
 
 const textareaStyles = {
   width: "100%",
-  height: "350px",
+  height: { base: "250px", md: "350px" },
   padding: "16px",
   borderRadius: "12px",
   border: "1px solid",
@@ -274,7 +275,7 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                 <Dialog.Title
                   css={{
                     color: "fg",
-                    fontSize: "2xl",
+                    fontSize: { base: "lg", md: "2xl" },
                     fontWeight: "bold",
                   }}
                 >
@@ -290,21 +291,18 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                   <FiX />
                 </IconButton>
               </HStack>
-              <Text fontSize="xs" color="fg.muted" mt={1}>
-                Configure external Model Context Protocol servers loaded by the
-                backend assistant.
-              </Text>
             </Dialog.Header>
 
             <Dialog.Body {...dialogBody}>
               <VStack gap={4} align="stretch">
                 {/* Custom Tab Switcher */}
-                <HStack
+                <Flex
                   gap={2}
                   bg="bg.muted"
                   p={1}
                   borderRadius="xl"
-                  alignSelf="flex-start"
+                  alignSelf={{ base: "stretch", sm: "flex-start" }}
+                  flexDirection={{ base: "column", sm: "row" }}
                 >
                   <Button
                     size="sm"
@@ -332,7 +330,7 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                   >
                     <FiEye style={{ marginRight: "6px" }} /> Live Preview
                   </Button>
-                </HStack>
+                </Flex>
 
                 {activeTab === "edit" ? (
                   <VStack align="stretch" gap={3}>
@@ -371,23 +369,22 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                           />
                         </VStack>
                       ) : (
-                        <textarea
+                        <Box
+                          as="textarea"
                           value={rawJson}
-                          onChange={(e) => setRawJson(e.target.value)}
+                          onChange={(e: any) => setRawJson(e.target.value)}
                           disabled={loading}
-                          style={{
-                            ...textareaStyles,
-                            borderColor: !isValid
-                              ? "var(--chakra-colors-red-500)"
-                              : "var(--chakra-colors-border-default)",
-                          }}
+                          {...textareaStyles}
+                          borderColor={!isValid
+                            ? "red.500"
+                            : "border.default"}
                           placeholder={`[\n  {\n    "type": "sse",\n    "server_url": "https://..."\n  }\n]`}
                         />
                       )}
                     </Box>
 
                     {/* Prettifier and validation warning */}
-                    <HStack justify="space-between" width="100%">
+                    <Flex direction={{ base: "column", sm: "row" }} justify="space-between" align={{ base: "flex-start", sm: "center" }} gap={3} width="100%">
                       <HStack gap={2}>
                         <Button
                           size="xs"
@@ -436,7 +433,7 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                           </>
                         )}
                       </HStack>
-                    </HStack>
+                    </Flex>
 
                     <Separator borderColor="border.subtle" my={1} />
 
@@ -474,7 +471,7 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                 ) : (
                   /* Preview Tab using Chakra CodeBlock & Shiki Adapter */
                   <Box
-                    height="350px"
+                    height={{ base: "250px", md: "350px" }}
                     overflowY="auto"
                     borderRadius="12px"
                     border="1px solid"
@@ -510,8 +507,9 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
               </VStack>
             </Dialog.Body>
 
-            <Dialog.Footer {...dialogFooter}>
+            <Dialog.Footer {...dialogFooter} flexDirection={{ base: "column", sm: "row" }} flexWrap="wrap">
               <Button
+                w={{ base: "full", sm: "auto" }}
                 variant="ghost"
                 color="fg"
                 borderRadius="xl"
@@ -522,6 +520,7 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
               </Button>
 
               <Button
+                w={{ base: "full", sm: "auto" }}
                 bg="brand.600"
                 color="white"
                 borderRadius="xl"

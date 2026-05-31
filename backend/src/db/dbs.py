@@ -1,14 +1,14 @@
 import os
-from typing import Generator
+from contextlib import contextmanager
 
 from dotenv import load_dotenv
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from loguru import logger
 from psycopg_pool import AsyncConnectionPool
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
-
 from src.models.models import Session
 
 _pool: AsyncConnectionPool | None = None
@@ -19,13 +19,15 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = None
+async_engine = None
 SessionLocal = None
+AsyncSessionLocal = None
 _connection_failed = False
 
 
 def _init_db():
     """Initialize database connection on first use"""
-    global engine, SessionLocal, _connection_failed
+    global engine, async_engine,SessionLocal,AsyncSessionLocal, _connection_failed
 
     if engine is not None:
         return  # Already initialized
@@ -46,7 +48,16 @@ def _init_db():
             pool_recycle=300,
             connect_args={"connect_timeout": 5},
         )
+        # asyncpg requires the postgresql+asyncpg:// scheme — plain postgresql:// is a sync driver
+        async_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+        async_engine = create_async_engine(
+            async_url,
+            pool_pre_ping=True,
+            pool_recycle=300,
+        )
         SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
+        # Must use async_sessionmaker (not sessionmaker) for AsyncSession
+        AsyncSessionLocal = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
         logger.info("Database connection established")
     except Exception as e:
         logger.critical(f"Failed to connect to database: {str(e)}")
@@ -54,30 +65,36 @@ def _init_db():
         raise SystemExit("Database connection failed")
 
 
-def get_db() -> Generator[Session, None, None]:
+async def get_db():
     _init_db()
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception as e:
+            logger.error(f"Database error: {e}")
+            await session.rollback()
+            raise
+
+
+@contextmanager
+def get_task_db():
+    _init_db()  # Celery workers don't go through lifespan, so init lazily here
     db = SessionLocal()
     try:
-        logger.debug("Database session created")
         yield db
-    except Exception as e:
-        logger.error(f"Database error: {e}")
+    except Exception:
+        db.rollback()
         raise
     finally:
-        logger.debug("Database session closed")
         db.close()
 
 
-def create_all_tables():
-    try:
-        _init_db()
-        logger.info("Creating database tables")
-        SQLModel.metadata.create_all(engine)
-        logger.info("Database tables created successfully")
-    except Exception as e:
-        logger.error(f"Error creating tables: {str(e)}")
-        # Don't raise - let the app start even if table creation fails
-        logger.warning("Continuing startup despite table creation failure")
+
+async def create_all_tables():
+    # Ensure engine is initialised before using it
+    _init_db()
+    async with async_engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
 
 
 async def init_checkpointer():

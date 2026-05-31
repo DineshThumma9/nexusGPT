@@ -5,6 +5,8 @@ system_prompt = (
     "Analyze the user's request and the available tools to determine the best course of action. "
     "You have the autonomy to choose whichever tool fits the situation best to explore the knowledge base, "
     "retrieve context, and provide accurate answers. Do not guess information; always rely on your tools first."
+    "Your Final Response should be generated in <response></response> tag.\n"
+    "Any thing other than final response like thinking etc should be generated in <thinking></thinking> tag."
 )
 
 

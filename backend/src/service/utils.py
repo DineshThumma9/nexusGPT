@@ -7,7 +7,7 @@ from typing import Any
 
 import loguru as logger
 from cryptography.fernet import Fernet
-from github import Auth, Github
+import httpx
 
 
 def _unpack_compiled_object(items, raw_source: bytes = None):
@@ -220,17 +220,27 @@ def build_tree(tree_lis):
     return root["children"]
 
 
-def get_dir_struct(req):
+async def get_dir_struct(req):
+    headers = {"Authorization": f"token {req.token}"} if req.token else {}
 
-    github_client = Github(auth=Auth.Token(req.token))
-    repo = github_client.get_repo(f"{req.owner}/{req.repo}")
-    tree_sha = repo.default_branch
-    tree = repo.get_git_tree(sha=tree_sha, recursive=True)
-    lis = []
-
-    for item in tree.tree:
-        lis.append(
-            {"type": item.type, "path": item.path, "size": item.size, "sha": item.sha}
+    async with httpx.AsyncClient() as client:
+        # One call: repo metadata gives us default_branch for free
+        meta = await client.get(
+            f"https://api.github.com/repos/{req.owner}/{req.repo}",
+            headers=headers,
         )
+        meta.raise_for_status()
+        default_branch = meta.json()["default_branch"]
 
+        tree_resp = await client.get(
+            f"https://api.github.com/repos/{req.owner}/{req.repo}/git/trees/{default_branch}",
+            headers=headers,
+            params={"recursive": "1"},
+        )
+        tree_resp.raise_for_status()
+
+    lis = [
+        {"type": item["type"], "path": item["path"], "size": item.get("size"), "sha": item["sha"]}
+        for item in tree_resp.json().get("tree", [])
+    ]
     return build_tree(lis)

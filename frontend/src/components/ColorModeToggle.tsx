@@ -10,7 +10,7 @@ export const ColorModeToggle = () => {
     <IconButton
       aria-label={`Switch to ${colorMode === "light" ? "dark" : "light"} mode`}
       onClick={toggleColorMode}
-      size="md"
+      size={{ base: "sm", md: "md" }}
       variant="ghost"
       bg="transparent"
       color="fg.muted"
