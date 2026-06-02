@@ -6,16 +6,18 @@ from botocore.exceptions import ClientError
 from fastapi import UploadFile
 from loguru import logger
 
+from src.config.settings import settings
+
 
 def _get_s3_client():
     return boto3.client(
         "s3",
-        region_name=os.getenv("AWS_REGION"),
+        region_name=settings.aws_region,
     )
 
 
 def _bucket() -> str:
-    bucket = os.getenv("AWS_BUCKET")
+    bucket = settings.aws_bucket
     if not bucket:
         raise RuntimeError("AWS_BUCKET environment variable is not set")
     return bucket

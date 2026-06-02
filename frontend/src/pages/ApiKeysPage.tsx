@@ -135,7 +135,12 @@ const ApiKeysPage = () => {
   };
 
   return (
-    <Box minH="100vh" bg="bg.canvas" py={{ base: 4, md: 8 }} px={{ base: 4, md: 8, lg: 12 }}>
+    <Box
+      minH="100vh"
+      bg="bg.canvas"
+      py={{ base: 4, md: 8 }}
+      px={{ base: 4, md: 8, lg: 12 }}
+    >
       <Container maxW="7xl" p={0}>
         {/* Header */}
         <HStack

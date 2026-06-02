@@ -16,7 +16,7 @@ import {
   Separator,
   Flex,
 } from "@chakra-ui/react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { getMcpConfig, saveMcpConfig } from "../api/setup-api";
 import { toaster } from "./ui/toaster";
 import {
@@ -61,13 +61,12 @@ const dialogFooter = {
   gap: 3,
 };
 
-const textareaStyles = {
+const getTextareaStyle = (isValid: boolean): React.CSSProperties => ({
   width: "100%",
-  height: { base: "250px", md: "350px" },
+  height: "350px",
   padding: "16px",
   borderRadius: "12px",
-  border: "1px solid",
-  borderColor: "var(--chakra-colors-border-default)",
+  border: `1px solid ${isValid ? "var(--chakra-colors-border-default)" : "var(--chakra-colors-red-500)"}`,
   backgroundColor: "rgba(0, 0, 0, 0.2)",
   color: "var(--chakra-colors-fg)",
   fontFamily:
@@ -75,9 +74,10 @@ const textareaStyles = {
   fontSize: "14px",
   lineHeight: "1.5",
   outline: "none",
-  resize: "none" as const,
+  resize: "none",
   transition: "all 0.2s ease",
-};
+  boxSizing: "border-box",
+});
 
 export const McpConfigDialog = ({ onClose, onError }: Props) => {
   const [rawJson, setRawJson] = useState("");
@@ -369,22 +369,24 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                           />
                         </VStack>
                       ) : (
-                        <Box
-                          as="textarea"
+                        <textarea
                           value={rawJson}
-                          onChange={(e: any) => setRawJson(e.target.value)}
+                          onChange={(e) => setRawJson(e.target.value)}
                           disabled={loading}
-                          {...textareaStyles}
-                          borderColor={!isValid
-                            ? "red.500"
-                            : "border.default"}
+                          style={getTextareaStyle(isValid)}
                           placeholder={`[\n  {\n    "type": "sse",\n    "server_url": "https://..."\n  }\n]`}
                         />
                       )}
                     </Box>
 
                     {/* Prettifier and validation warning */}
-                    <Flex direction={{ base: "column", sm: "row" }} justify="space-between" align={{ base: "flex-start", sm: "center" }} gap={3} width="100%">
+                    <Flex
+                      direction={{ base: "column", sm: "row" }}
+                      justify="space-between"
+                      align={{ base: "flex-start", sm: "center" }}
+                      gap={3}
+                      width="100%"
+                    >
                       <HStack gap={2}>
                         <Button
                           size="xs"
@@ -507,7 +509,11 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
               </VStack>
             </Dialog.Body>
 
-            <Dialog.Footer {...dialogFooter} flexDirection={{ base: "column", sm: "row" }} flexWrap="wrap">
+            <Dialog.Footer
+              {...dialogFooter}
+              flexDirection={{ base: "column", sm: "row" }}
+              flexWrap="wrap"
+            >
               <Button
                 w={{ base: "full", sm: "auto" }}
                 variant="ghost"

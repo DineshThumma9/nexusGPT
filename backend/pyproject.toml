@@ -65,9 +65,12 @@ dependencies = [
     "httpx>=0.28.1",
     "uvloop>=0.22.1",
     "gunicorn>=26.0.0",
+    "alembic>=1.18.4",
 ]
 
 [dependency-groups]
 dev = [
+    "moto[amplify,ebs,ec2,s3]>=5.2.1",
+    "pytest>=9.0.3",
     "ruff>=0.15.13",
 ]

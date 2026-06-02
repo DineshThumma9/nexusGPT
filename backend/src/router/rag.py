@@ -3,11 +3,12 @@ import os
 import uuid
 from typing import List
 
-import requests
+import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from loguru import logger
 from sqlmodel import Session, select
 
+from src.config.settings import settings
 from src.db.dbs import get_db
 from src.db.redis_client import aredis as redis_client
 from src.models.enums import KBSourceType, KBStatus
@@ -16,17 +17,12 @@ from src.models.schema import GitRequest, GitSpec
 from src.router.auth import get_current_user
 from src.router.limiter import limiter
 from src.service.db_service import ensure_kb
+from src.service.repo_limits import RepoTooLargeError, enforce_repo_limits
 from src.service.s3 import upload_file_to_s3
 from src.service.tasks import ingest_git_repo_task, ingest_pdf_task
 from src.service.utils import get_dir_struct
 
 router = APIRouter()
-
-# CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-# PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
-# UPLOADS_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "uploads")
-# os.makedirs(UPLOADS_DIR, exist_ok=True)
-import httpx
 
 
 async def validate_and_get_commit_sha(req: GitRequest) -> tuple[str, str]:
@@ -35,37 +31,53 @@ async def validate_and_get_commit_sha(req: GitRequest) -> tuple[str, str]:
     and returns the commit SHA and resolved branch/ref.
     """
     headers = {}
-    github_token = req.token or os.getenv("GITHUB_TOKEN")
+    github_token = req.token or settings.github_token
     if github_token:
         headers["Authorization"] = f"token {github_token}"
 
-    async with httpx.AsyncClient() as client:
-        # Fetch repo metadata once — gives us default_branch for free
-        meta = await client.get(
-            f"https://api.github.com/repos/{req.owner}/{req.repo}",
-            headers=headers,
-        )
-        if meta.status_code == 404:
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            meta = await client.get(
+                f"https://api.github.com/repos/{req.owner}/{req.repo}",
+                headers=headers,
+            )
+            if meta.status_code == 404 or meta.status_code == 301:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Repository '{req.owner}/{req.repo}' not found or not accessible.",
+                )
+            meta.raise_for_status()
+
+            ref = req.commit or req.branch or meta.json()["default_branch"]
+
+            resp = await client.get(
+                f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
+                headers=headers,
+            )
+
+            # if resp.status_code == 422 and req.branch == "main" and not req.commit:
+            #     default_branch = meta.json()["default_branch"]
+            #     if default_branch != "main":
+            #         ref = default_branch
+            #         resp = await client.get(
+            #             f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
+            #             headers=headers,
+            #         )
+
+        if resp.status_code != 200:
             raise HTTPException(
                 status_code=400,
-                detail=f"Repository '{req.owner}/{req.repo}' not found or not accessible.",
+                detail=f"Failed to fetch repo from GitHub: {resp.text}",
             )
-        meta.raise_for_status()
 
-        ref = req.commit or req.branch or meta.json()["default_branch"]
+        return resp.json()["sha"], ref
 
-        resp = await client.get(
-            f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
-            headers=headers,
-        )
-
-    if resp.status_code != 200:
+    except httpx.RequestError as exc:
+        logger.error(f"GitHub API connection error: {exc}")
         raise HTTPException(
-            status_code=400,
-            detail=f"Failed to fetch repo from GitHub: {resp.text}",
+            status_code=503,
+            detail="Failed to connect to GitHub. Please check your network or try again.",
         )
-
-    return resp.json()["sha"], ref
 
 
 @router.post("/git")
@@ -81,7 +93,12 @@ async def git_rag(
     """Triggers the background ingestion of a Git repository via Celery."""
     sha, ref = await validate_and_get_commit_sha(req)
 
-    # Override the frontend's kb_id with a deterministic UUID based on the SHA
+    try:
+        await enforce_repo_limits(req, ref)
+    except RepoTooLargeError as e:
+        logger.warning(f"Repo rejected for size: {req.owner}/{req.repo}: {e}")
+        raise HTTPException(status_code=413, detail=str(e))
+
     kb_id = str(uuid.uuid5(uuid.NAMESPACE_OID, sha))
 
     logger.info(
@@ -98,29 +115,49 @@ async def git_rag(
         source_ref=f"{req.owner}/{req.repo}",
     )
 
-    if (
-        kb.status in (KBStatus.READY, KBStatus.INDEXING, KBStatus.PENDING)
-        and kb.created_at
-    ):
-        if kb.status in (KBStatus.READY, KBStatus.INDEXING):
+    if kb.status == KBStatus.READY:
+        logger.info(f"KB {kb_id} already READY. Skipping ingestion.")
+        return {"status": "ready", "kb_id": kb_id}
+
+    if kb.status in (KBStatus.INDEXING, KBStatus.PENDING):
+        redis_key = f"kb:{kb_id}:status"
+        redis_val = await redis_client.get(redis_key)
+
+        should_skip = False
+        if redis_val is not None:
+            try:
+                if isinstance(redis_val, bytes):
+                    redis_val = redis_val.decode()
+                status_data = json.loads(redis_val)
+                if status_data.get("status") in ("processing", "indexing", "pending"):
+                    should_skip = True
+            except (json.JSONDecodeError, AttributeError):
+                should_skip = True
+
+        if should_skip:
             logger.info(
-                f"KB {kb_id} (SHA: {sha}) already exists with status {kb.status}. Skipping ingestion."
+                f"KB {kb_id} has status {kb.status} and live processing Redis key. "
+                "Skipping re-dispatch."
             )
             return {
-                "status": "indexing" if kb.status == KBStatus.INDEXING else "ready",
+                "status": "indexing" if kb.status == KBStatus.INDEXING else "pending",
                 "kb_id": kb_id,
             }
 
-    # Update Redis status key
+        logger.warning(
+            f"KB {kb_id} is stuck in {kb.status} (Redis says not processing). "
+            "Resetting and re-dispatching Celery task."
+        )
+        kb.status = KBStatus.PENDING
+        db.add(kb)
+        await db.commit()
+
     await redis_client.set(
         f"kb:{kb_id}:status",
         json.dumps({"status": "processing", "detail": "Indexing initialized..."}),
-        ex=86400,
+        ex=180,
     )
 
-    # Trigger Celery Task asynchronously
-    # `ref` already holds the correct branch (original or auto-detected fallback).
-    # The commits API response has no "branch" field — don't try to read it from there.
     req_data = req.model_dump()
     req_data["branch"] = ref
     ingest_git_repo_task.delay(req_data, kb_id, session_id, str(user.userid))
@@ -154,22 +191,18 @@ async def get_rag(
         source_ref=source_ref,
     )
 
-    # Save uploaded files locally so Celery worker can read them
     file_paths = []
     for file in files:
         if not file.filename:
             continue
-        # Upload to S3
         try:
             s3_key = await upload_file_to_s3(file=file, kb_id=kb_id)
         except Exception as e:
             logger.error(f"Failed to upload file to S3: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
-        # We append the S3 key to file_paths so Celery can download it
         file_paths.append(s3_key)
 
-    # Update Redis status key
     await redis_client.set(
         f"kb:{kb_id}:status",
         json.dumps({"status": "processing", "detail": "Indexing initialized..."}),
@@ -224,7 +257,9 @@ async def get_status(
                 return {"status": "processing", "detail": status_val, "kb_id": kb_id}
 
         # Fallback to Postgres
-        result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.kb_id == kb_id))
+        result = await db.execute(
+            select(KnowledgeBase).where(KnowledgeBase.kb_id == kb_id)
+        )
         kb = result.scalars().first()
         if kb:
             # Handle DB status enum cleanly
@@ -234,11 +269,21 @@ async def get_status(
             logger.info(f"Postgres status for KB {kb_id}: {status_str}")
 
             if status_str.upper() == "INDEXING":
+                # Redis key is gone but Postgres says INDEXING → worker died.
+                # Return 'stale' so the frontend can surface a retry option.
+
+                if redis_client.get(kb_key) is None:
+                    # Set it to stale in db
+                    kb.status = KBStatus.STALE
+                    db.add(kb)
+                    await db.commit()
+
                 return {
-                    "status": "processing",
-                    "detail": "Initializing worker...",
+                    "status": "stale",
+                    "detail": "Worker stopped mid-task. Re-submit the repository to restart indexing.",
                     "kb_id": kb_id,
                 }
+
             elif status_str.upper() == "READY":
                 return {
                     "status": "ready",
@@ -247,6 +292,12 @@ async def get_status(
                 }
             elif status_str.upper() == "FAILED":
                 return {"status": "failed", "detail": "Task failed", "kb_id": kb_id}
+            elif status_str.upper() == "REJECTED":
+                return {
+                    "status": "rejected",
+                    "detail": "Repository rejected",
+                    "kb_id": kb_id,
+                }
             else:
                 return {
                     "status": status_str.lower(),

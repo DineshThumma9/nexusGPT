@@ -37,7 +37,7 @@ export const GitRequestSchema = z.object({
   owner: z.string(),
   repo: z.string(),
   commit: z.string().optional(),
-  branch: z.string().default("main").optional(),
+  branch: z.string().default("").optional(),
   dir_include: z.array(z.string()).optional(),
   dir_exclude: z.array(z.string()).optional(),
   file_extension_include: z.array(z.string()).optional(),
@@ -138,7 +138,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
 
   const [owner, setOwner] = useState("");
   const [repo, setRepo] = useState("");
-  const [branch, setBranch] = useState("main");
+  const [branch, setBranch] = useState("");
   const [commit, setCommit] = useState("");
   const [token, setToken] = useState("");
 
@@ -186,7 +186,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
       const body = {
         repo: repo.trim(),
         owner: owner.trim(),
-        branch: branch.trim() || "main",
+        branch: branch.trim() || undefined,
         commit: commit.trim() || undefined,
         token: token.trim() || undefined,
       };
@@ -264,7 +264,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
         owner: owner.trim(),
         repo: repo.trim(),
         commit: commit.trim() || undefined,
-        branch: branch.trim() || "main",
+        branch: branch.trim() || undefined,
         files: explorer ? selectedFiles : undefined,
         token: token.trim() || undefined,
       });
@@ -385,7 +385,11 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                     </InputGroup>
 
                     {/* Owner and Repository */}
-                    <Flex direction={{ base: "column", md: "row" }} gap={4} w="full">
+                    <Flex
+                      direction={{ base: "column", md: "row" }}
+                      gap={4}
+                      w="full"
+                    >
                       <Field.Root flex={1}>
                         <Field.Label
                           color="fg"
@@ -439,7 +443,11 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                     </Flex>
 
                     {/* Branch and Commit */}
-                    <Flex direction={{ base: "column", md: "row" }} gap={4} w="full">
+                    <Flex
+                      direction={{ base: "column", md: "row" }}
+                      gap={4}
+                      w="full"
+                    >
                       <Field.Root flex={1}>
                         <Field.Label
                           color="white"
@@ -495,7 +503,11 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
                 )}
               </Dialog.Body>
 
-              <Dialog.Footer {...dialogFooter} flexDirection={{ base: "column", sm: "row" }} flexWrap="wrap">
+              <Dialog.Footer
+                {...dialogFooter}
+                flexDirection={{ base: "column", sm: "row" }}
+                flexWrap="wrap"
+              >
                 <Dialog.ActionTrigger asChild>
                   <Button
                     w={{ base: "full", sm: "auto" }}

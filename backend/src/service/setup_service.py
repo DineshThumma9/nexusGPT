@@ -1,34 +1,29 @@
 import os
 from collections import defaultdict
+from typing import Dict, List
 
-import requests
-from fastapi import Depends, HTTPException
+import httpx
+from fastapi import HTTPException
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import BaseTool, ToolException
+from langchain_core.tools import BaseTool
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from loguru import logger
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db import get_db
 from src.db.dbs import get_checkpointer
 from src.db.neo4j import get_graph
 from src.db.qdrant_client import get_user_vector_db
-from src.models.models import APIKEYS, KnowledgeBase, Session, UserLLMConfig
-from src.service.auth_service import get_current_user
+from src.models.models import APIKEYS, KnowledgeBase, Session, User, UserLLMConfig
+from src.service.constants import VALID_PROVIDERS, api_keys, links
 from src.service.middleware import middleware_setup
 from src.service.prompts import system_prompt
 from src.service.tasks import session_title_gen
 from src.service.tools import make_tools
 from src.service.utils import decrypt
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from src.models.models import User
-from typing import Dict, List
-from src.service.constansts import links,api_keys,VALID_PROVIDERS
-import httpx
-
 
 
 def build_agent(
@@ -63,9 +58,11 @@ def build_agent(
     )
 
 
-async def get_api_key(provider: str, db:AsyncSession, user:User) -> str:
+async def get_api_key(provider: str, db: AsyncSession, user: User) -> str:
     result = await db.execute(
-        select(APIKEYS).where(APIKEYS.user_id == user.userid, APIKEYS.provider == provider)
+        select(APIKEYS).where(
+            APIKEYS.user_id == user.userid, APIKEYS.provider == provider
+        )
     )
     api_key = result.scalars().first()
     if not api_key:
@@ -73,8 +70,10 @@ async def get_api_key(provider: str, db:AsyncSession, user:User) -> str:
     return decrypt(api_key.encrypted_key)
 
 
-async def get_llm_instance(db:AsyncSession, user:User):
-    result = await db.execute(select(UserLLMConfig).where(UserLLMConfig.user_id == user.userid))
+async def get_llm_instance(db: AsyncSession, user: User):
+    result = await db.execute(
+        select(UserLLMConfig).where(UserLLMConfig.user_id == user.userid)
+    )
     config = result.scalars().first()
 
     logger.info(config)
@@ -86,7 +85,9 @@ async def get_llm_instance(db:AsyncSession, user:User):
 
     decrypted_key = await get_api_key(config.provider, db=db, user=user)
 
-    logger.info(f"Model: {config.model} Provider: {config.provider} using key: {decrypted_key[:4]}...")
+    logger.info(
+        f"Model: {config.model} Provider: {config.provider} using key: {decrypted_key[:4]}..."
+    )
 
     if config.provider == "huggingface":
         # Force the Inference API instead of local pipeline
@@ -106,13 +107,13 @@ async def get_llm_instance(db:AsyncSession, user:User):
     )
 
 
-async def get_valid_models() -> Dict[str,List[str]]:
+async def get_valid_models() -> Dict[str, List[str]]:
 
     valid_models = defaultdict(list)
     client = httpx.AsyncClient()
 
     for model, model_url in links.items():
-        if api_keys[model] is None:
+        if api_keys.get(model, None) is None:
             continue
         try:
             response = await client.get(
@@ -163,7 +164,9 @@ async def setup_agent_for_session(db, session_id: str, user, msg: str):
 
     kb = None
     if kb_id is not None:
-        result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.kb_id == kb_id))
+        result = await db.execute(
+            select(KnowledgeBase).where(KnowledgeBase.kb_id == kb_id)
+        )
         kb = result.scalars().first()
 
         if kb:

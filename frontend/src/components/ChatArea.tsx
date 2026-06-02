@@ -88,7 +88,10 @@ const ChatArea = ({ onOpenSidebar }: ChatAreaProps) => {
       </HStack>
 
       {/* Mobile model chooser collapsible content - rendered absolutely below header */}
-      <Collapsible.Root open={modelChooserOpen} display={{ base: "block", md: "none" }}>
+      <Collapsible.Root
+        open={modelChooserOpen}
+        display={{ base: "block", md: "none" }}
+      >
         <Collapsible.Content
           style={{
             position: "absolute",

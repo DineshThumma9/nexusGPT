@@ -12,8 +12,7 @@ from qdrant_client.models import (
     MatchValue,
 )
 
-load_dotenv()
-
+from src.config.settings import settings
 
 _client: AsyncQdrantClient | None = None
 _sync_client: QdrantClient | None = None
@@ -26,16 +25,13 @@ _dense_embeddings = None
 _sparse_embeddings = None
 _code_embeddings = None
 
-_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(_CURRENT_DIR))
-
 
 def get_embeddings():
     global _dense_embeddings
     if _dense_embeddings is None:
         _dense_embeddings = NomicEmbeddings(
-            model="nomic-embed-text-v1.5",
-            nomic_api_key=os.getenv("NOMIC_API_KEY"),
+            model=settings.nomic_embedding_model,
+            nomic_api_key=settings.nomic_api_key,
         )
     return _dense_embeddings
 
@@ -44,17 +40,11 @@ def get_code_embeddings():
     global _code_embeddings
     if _code_embeddings is None:
         _code_embeddings = VoyageAIEmbeddings(
-            model="voyage-code-3", api_key=os.getenv("VOYAGE_API_KEY"), batch_size=1000
+            model=settings.voyage_embedding_model,
+            api_key=settings.voyage_api_key,
+            batch_size=1000,
         )
     return _code_embeddings
-
-
-def _get_qdrant_credentials() -> tuple[str | None, str | None]:
-    url = os.getenv("QDRANT_URL")
-    api_key = os.getenv("QDRANT_API_KEY")
-    logger.info(f"URL: {url}")
-    logger.info(f"API KEY: {'***' if api_key else 'None'}")
-    return url, api_key
 
 
 def _setup_collections(client: QdrantClient):
@@ -88,8 +78,9 @@ def _setup_collections(client: QdrantClient):
 
 async def init_qdrant():
     global _client
-    url, api_key = _get_qdrant_credentials()
-    _client = AsyncQdrantClient(url=url, api_key=api_key, timeout=90)
+    _client = AsyncQdrantClient(
+        url=settings.qdrant_url, api_key=settings.qdrant_api_key, timeout=90
+    )
     _get_sync_client()
 
 
@@ -100,8 +91,9 @@ def get_qdrant() -> AsyncQdrantClient:
 def _get_sync_client() -> QdrantClient:
     global _sync_client
     if _sync_client is None:
-        url, api_key = _get_qdrant_credentials()
-        _sync_client = QdrantClient(url=url, api_key=api_key, timeout=90)
+        _sync_client = QdrantClient(
+            url=settings.qdrant_url, api_key=settings.qdrant_api_key, timeout=90
+        )
         _setup_collections(_sync_client)
     return _sync_client
 

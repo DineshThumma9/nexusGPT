@@ -47,8 +47,9 @@ class API_KEY_REQUEST(BaseModel):
 
 
 class API_KEY_RESPONSE(BaseModel):
-    provider:str
-    encrypted_key:str
+    provider: str
+    encrypted_key: str
+
 
 class TitleUpdateRequest(BaseModel):
     title: str
@@ -67,7 +68,7 @@ class SessionResponse(BaseModel):
     id: UUID = Field(validation_alias=AliasChoices("id", "session_id"))
     session_id: UUID
     title: str = Field(default="New Chat")
-    kb_id: UUID | None = None 
+    kb_id: UUID | None = None
     source_type: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -76,7 +77,7 @@ class SessionResponse(BaseModel):
 class GitSpec(BaseModel):
     owner: str
     repo: str
-    branch: Optional[str] = "main"
+    branch: Optional[str] = None
     commit: Optional[str] = None
     tree_sha: Optional[str] = None
     token: Optional[str] = None
@@ -86,7 +87,7 @@ class GitRequest(BaseModel):
     owner: str
     repo: str
     commit: Optional[str] = None
-    branch: Optional[str] = "main"
+    branch: Optional[str] = None
     dir_include: Optional[List[str]] = None
     dir_exclude: Optional[List[str]] = None
     file_extension_include: Optional[List[str]] = None

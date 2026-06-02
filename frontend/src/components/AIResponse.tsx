@@ -103,11 +103,12 @@ const AIResponse = ({ msg, idx }: Props) => {
   );
 
   const { thinkingContent, responseContent, hasThinking } = useMemo(() => {
-    if (!displayed) return { thinkingContent: "", responseContent: "", hasThinking: false };
+    if (!displayed)
+      return { thinkingContent: "", responseContent: "", hasThinking: false };
 
     const sourcesRegex = /\n\n📚 \*\*Sources:\*\*\n[\s\S]*$/;
     const cleanStr = displayed.replace(sourcesRegex, "");
-    
+
     let thinking = "";
     let response = cleanStr;
     let hasThinking = false;
@@ -124,7 +125,7 @@ const AIResponse = ({ msg, idx }: Props) => {
         response = "";
       }
     }
-    
+
     const respStart = response.indexOf("<response>");
     if (respStart !== -1) {
       const respEnd = response.indexOf("</response>");
@@ -135,7 +136,11 @@ const AIResponse = ({ msg, idx }: Props) => {
       }
     }
 
-    return { thinkingContent: thinking, responseContent: response, hasThinking };
+    return {
+      thinkingContent: thinking,
+      responseContent: response,
+      hasThinking,
+    };
   }, [displayed]);
 
   useEffect(() => {
@@ -185,10 +190,10 @@ const AIResponse = ({ msg, idx }: Props) => {
                     <Box mb={4}>
                       <Collapsible.Root defaultOpen={isCurrentlyStreaming}>
                         <Collapsible.Trigger asChild>
-                          <HStack 
-                            cursor="pointer" 
-                            color="fg.muted" 
-                            fontSize="sm" 
+                          <HStack
+                            cursor="pointer"
+                            color="fg.muted"
+                            fontSize="sm"
                             fontWeight="medium"
                             _hover={{ color: "fg.default" }}
                             transition="color 0.2s"
@@ -200,17 +205,17 @@ const AIResponse = ({ msg, idx }: Props) => {
                           </HStack>
                         </Collapsible.Trigger>
                         <Collapsible.Content>
-                          <Box 
-                            pl={4} 
-                            py={2} 
-                            borderLeft="2px solid" 
+                          <Box
+                            pl={4}
+                            py={2}
+                            borderLeft="2px solid"
                             borderColor="border.subtle"
                             color="fg.muted"
                             fontSize="sm"
                             css={{
                               fontStyle: "italic",
                               whiteSpace: "pre-wrap",
-                              wordBreak: "break-word"
+                              wordBreak: "break-word",
                             }}
                           >
                             {thinkingContent}

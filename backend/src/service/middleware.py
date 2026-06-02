@@ -1,5 +1,3 @@
-import os
-
 from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
     SummarizationMiddleware,
@@ -10,6 +8,7 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import RemoveMessage, ToolMessage
 from langchain_groq import ChatGroq
 
+from src.config.settings import settings
 from src.service.prompts import summarization_prompt
 
 
@@ -59,9 +58,7 @@ class CleanToolMessagesMiddleware(AgentMiddleware):
 
 def middleware_setup():
     summarization = SummarizationMiddleware(
-        model=ChatGroq(
-            model=os.getenv("SUMMARIZATION_MODEL", "llama-3.3-70b-versatile")
-        ),
+        model=ChatGroq(model=settings.summarization_llm),
         trigger=[("messages", 10), ("tokens", 6000)],
         keep=("messages", 8),
         summarization_prompt=summarization_prompt,
@@ -77,7 +74,7 @@ def middleware_setup():
     # Caps the actual tool execution (RAG searches, MCP actions)
     tool_tracker = ToolCallLimitMiddleware(
         thread_limit=50,
-        run_limit=5,  # Your ideal 5 calls per "round"
+        run_limit=7,  # Your ideal 5 calls per "round"
         exit_behavior="continue",  # Forces the LLM to summarize its failures rather than crashing
     )
 

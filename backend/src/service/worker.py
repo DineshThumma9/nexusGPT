@@ -1,16 +1,20 @@
-import os
-
 from celery import Celery
 from celery.signals import worker_process_init
 
-from src.db.redis_client import REDIS_URL
+from src.config.settings import settings
 
 # Celery App
 queue = Celery(
     "app",
-    broker=REDIS_URL,
-    backend=REDIS_URL,
+    broker=settings.redis_url,
+    backend=settings.redis_url,
     include=["src.service.tasks"],
+)
+
+queue.conf.update(
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    worker_send_task_events=True,
 )
 
 
@@ -20,13 +24,17 @@ def celery_worker_init(*args, **kwargs):
     import sentry_sdk
 
     from src.db.dbs import engine
+    from src.db.neo4j import init_graph
+    from src.db.redis_client import init_redis
 
     if engine is not None:
         engine.dispose()
 
-    sentry_dsn = os.getenv("SENTRY_DSN")
+    init_redis()
+    init_graph(force_reconnect=True)
+
+    sentry_dsn = settings.sentry_dsn
     if sentry_dsn:
-        import sentry_sdk
         from sentry_sdk.integrations.celery import CeleryIntegration
 
         sentry_sdk.init(

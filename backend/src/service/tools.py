@@ -1,11 +1,10 @@
+import asyncio
 import difflib
 import json
-import os
 import time
 from typing import Any
 from urllib.parse import urlparse
 
-from dotenv import load_dotenv
 from github import Auth, Github
 from langchain.tools import tool
 from langchain_community.tools import DuckDuckGoSearchRun
@@ -15,22 +14,18 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_neo4j import GraphCypherQAChain, Neo4jGraph
 from loguru import logger
 from qdrant_client.http import models
-from sqlmodel import Session
 from sqlalchemy import select
-import asyncio
+
+from src.config.settings import settings
 from src.db.dbs import get_db
 from src.db.redis_client import aredis as redis_client
 from src.models.models import UserMCPConfig
 from src.service.utils import decrypt
-from src.models.models import User
 
 Groq = ChatGroq
 
-load_dotenv()
 
-
-token = os.getenv("GITHUB_TOKEN")
-g = Github(auth=Auth.Token(token))
+g = Github(auth=Auth.Token(settings.github_token))
 
 
 async def get_mcp_tools(user_id):
@@ -46,7 +41,9 @@ async def get_mcp_tools(user_id):
             logger.info(f"Retrieved MCP configs from Redis in {end - start} seconds")
         else:
             async for db in get_db():
-                result = await db.execute(select(UserMCPConfig).where(UserMCPConfig.user_id == user_id))
+                result = await db.execute(
+                    select(UserMCPConfig).where(UserMCPConfig.user_id == user_id)
+                )
                 configs = result.scalars().all()
 
             if not configs:
@@ -151,12 +148,9 @@ async def make_tools(
     """
     cypher_chain = None
     if graph_obj:
-        c_model = os.getenv("CYPHER_LLM")
-        q_model = os.getenv("QA_LLM")
-
         cypher_chain = GraphCypherQAChain.from_llm(
-            cypher_llm=Groq(model=c_model),
-            qa_llm=Groq(model=q_model),
+            cypher_llm=Groq(model=settings.cypher_llm, api_key=settings.groq_api_key),
+            qa_llm=Groq(model=settings.qa_llm, api_key=settings.groq_api_key),
             graph=graph_obj,
             allow_dangerous_requests=True,
             verbose=True,
@@ -344,6 +338,33 @@ async def make_tools(
             logger.error(f"Error in ask_architecture: {e}")
             return f"Error in ask_architecture: {e}"
 
+    @tool(
+        description="Queries the user's uploaded documents (e.g., PDFs, text files) to find answers and context based on a search query."
+    )
+    def search_documents(query: str):
+        """
+        This tool provides a way to semantic-search the user's uploaded documents (like PDFs) 
+        and provides context to answer their query.
+        """
+        if not vector_db:
+            logger.info("Vector DB not configured")
+            return "No document knowledge base is currently loaded."
+
+        if not query:
+            return "Error: Please provide a search query."
+
+        docs = vector_db.similarity_search(query, k=5)
+        
+        if not docs:
+            return "No relevant document context found."
+
+        formatted_docs = [
+            f"source: {doc.metadata.get('source', 'Unknown')}\ncontent: {doc.page_content}"
+            for doc in docs
+        ]
+
+        return "---- Document Context ----- \n" + "\n\n".join(formatted_docs)
+
     try:
         mcp_tools = await get_mcp_tools(user_id)
     except Exception as e:
@@ -358,4 +379,5 @@ async def make_tools(
         get_source_code,
         ask_architecture,
         DuckDuckGoSearchRun(),
+        search_documents,
     ] + mcp_tools

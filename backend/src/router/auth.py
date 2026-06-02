@@ -10,12 +10,11 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from src.config.settings import settings
 from src.db.dbs import get_db
 from src.models.models import RefreshToken, User
 from src.models.schema import Token, UserPayload
 from src.service.auth_service import (
-    ALGORITHM,
-    SECRET_KEY,
     create_tokens,
     get_current_user,
 )
@@ -25,7 +24,6 @@ router = APIRouter()
 
 @router.post("/register", response_model=Token)
 async def register(user: UserPayload, db: AsyncSession = Depends(get_db)):
-
 
     result = await db.execute(select(User).where(User.email == user.email))
     existing_user = result.scalars().first()
@@ -73,12 +71,16 @@ async def login(
 @router.post("/refresh", response_model=Token)
 async def refresh_token(refresh: str = Form(...), db: AsyncSession = Depends(get_db)):
     try:
-        payload = jwt.decode(refresh, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            refresh, settings.secret_key, algorithms=[settings.algorithm]
+        )
         email = payload.get("sub")
         if not email:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-        result = await db.execute(select(RefreshToken).where(RefreshToken.token == refresh))
+        result = await db.execute(
+            select(RefreshToken).where(RefreshToken.token == refresh)
+        )
         db_token = result.scalars().first()
         if not db_token:
             raise HTTPException(status_code=401, detail="Refresh token not found")

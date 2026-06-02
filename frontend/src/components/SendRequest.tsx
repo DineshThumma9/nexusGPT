@@ -69,9 +69,9 @@ const hstack = () => ({
   alignItems: "flex-end",
   borderColor: "glass.border",
   borderRadius: "3xl",
-  px: { base: 3, md: 6 },
-  py: { base: 3, md: 4 },
-  gap: { base: 2, md: 4 },
+  px: { base: 3, md: 5 },
+  py: { base: 2, md: 3 },
+  gap: { base: 2, md: 3 },
   bg: "glass.bg",
   backdropFilter: "blur(24px)",
   border: "1px solid",
@@ -89,14 +89,14 @@ const hstack = () => ({
 
 const txtarea = () => ({
   resize: "none" as const,
-  minH: "20px", // Single line height
-  maxH: "120px", // Allow more growth but still limited
-  h: "20px", // Start with single line
+  minH: "24px", // Single line height
+  maxH: "250px", // Allow more growth but still limited
+  h: "24px", // Start with single line
   color: "fg",
   border: "none",
   px: 0,
   py: 0,
-  lineHeight: "20px", // Consistent line height
+  lineHeight: "24px", // Consistent line height
   placeholder: "Type your message...",
   fontSize: "sm",
   bg: "transparent",
@@ -105,7 +105,7 @@ const txtarea = () => ({
   backgroundAttachment: "initial",
   backgroundClip: "initial",
   backgroundColor: "transparent",
-  overflowY: "hidden", // Hide scrollbar until needed
+  overflowY: "auto", // Show scrollbar when needed
   _placeholder: {
     color: "fg.muted",
     fontSize: "sm",
@@ -153,14 +153,14 @@ const SendRequest = () => {
     setInput(value);
 
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+      textareaRef.current.style.height = "24px";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 250)}px`;
     }
   };
 
   useEffect(() => {
     if (!input && textareaRef.current) {
-      textareaRef.current.style.height = "40px";
+      textareaRef.current.style.height = "24px";
     }
   }, [input]);
 
@@ -186,8 +186,7 @@ const SendRequest = () => {
     if (fileInput) fileInput.value = "";
 
     if (textareaRef.current) {
-      textareaRef.current.style.height = "20px";
-      textareaRef.current.style.overflowY = "hidden";
+      textareaRef.current.style.height = "24px";
     }
 
     const message: Message = {

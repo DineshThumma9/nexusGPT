@@ -1,9 +1,4 @@
-
-
-
 import os
-
-
 
 # Always skip — pure noise
 ALWAYS_SKIP = {
@@ -32,6 +27,9 @@ SKIP_DIRS = {
     ".vscode/",
     "coverage/",
     ".pytest_cache/",
+    "src/assets",
+    "public/"
+    
 }
 
 # Skip these extensions
@@ -84,16 +82,14 @@ PARSE_AS_TEXT = {
 }
 
 
-
 links = {
-        "mistralai": "https://api.mistral.ai/v1/models",
-        "openai": "https://api.openai.com/v1/models",
-        "groq": "https://api.groq.com/openai/v1/models",
-        "openrouter": "https://openrouter.ai/api/v1/models",
-        "anthropic": "https://api.anthropic.com/v1/models",
-
-        "huggingface": "https://router.huggingface.co/v1/models",
-    }
+    "mistralai": "https://api.mistral.ai/v1/models",
+    "openai": "https://api.openai.com/v1/models",
+    "groq": "https://api.groq.com/openai/v1/models",
+    "openrouter": "https://openrouter.ai/api/v1/models",
+    "anthropic": "https://api.anthropic.com/v1/models",
+    "huggingface": "https://router.huggingface.co/v1/models",
+}
 
 
 _VALIDATION_URLS: dict[str, str] = {
@@ -108,12 +104,12 @@ _VALIDATION_URLS: dict[str, str] = {
 
 
 api_keys = {
-        "mistralai": os.getenv("MISTRAL_API_KEY"),
-        "openai": os.getenv("OPENAI_API_KEY"),
-        "groq": os.getenv("GROQ_API_KEY"),
-        "openrouter": os.getenv("OPENROUTER_API_KEY"),
-        "huggingface": os.getenv("HF_TOKEN"),
-    }
+    "mistralai": os.getenv("MISTRAL_API_KEY"),
+    "openai": os.getenv("OPENAI_API_KEY"),
+    "groq": os.getenv("GROQ_API_KEY"),
+    "openrouter": os.getenv("OPENROUTER_API_KEY"),
+    "huggingface": os.getenv("HF_TOKEN"),
+}
 
 VALID_PROVIDERS = list(_VALIDATION_URLS.keys())
 
@@ -127,5 +123,3 @@ CHUNK_SIZE_BY_LANGUAGE = {
     "go": 1200,  # small functions by convention
     "rust": 1800,
 }
-
-

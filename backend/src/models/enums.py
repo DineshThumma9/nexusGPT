@@ -12,6 +12,7 @@ class KBStatus(str, Enum):
     INDEXING = "indexing"
     READY = "ready"
     FAILED = "failed"
+    REJECTED = "rejected"
 
 
 class KBSourceType(str, Enum):

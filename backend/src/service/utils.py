@@ -5,9 +5,11 @@ import os
 from datetime import datetime
 from typing import Any
 
+import httpx
 import loguru as logger
 from cryptography.fernet import Fernet
-import httpx
+
+from src.config.settings import settings
 
 
 def _unpack_compiled_object(items, raw_source: bytes = None):
@@ -175,13 +177,10 @@ def decode_cursor(cursor: str):
         return None, None
 
 
-fernet_key = os.getenv("FERNET_KEY")
-fernet = Fernet(fernet_key) if fernet_key else None
+fernet = Fernet(settings.fernet_key)
 
 
 def encrypt(key: str) -> str:
-    if not fernet:
-        raise ValueError("FERNET_KEY environment variable is not set")
     return fernet.encrypt(key.encode()).decode()
 
 
@@ -240,7 +239,12 @@ async def get_dir_struct(req):
         tree_resp.raise_for_status()
 
     lis = [
-        {"type": item["type"], "path": item["path"], "size": item.get("size"), "sha": item["sha"]}
+        {
+            "type": item["type"],
+            "path": item["path"],
+            "size": item.get("size"),
+            "sha": item["sha"],
+        }
         for item in tree_resp.json().get("tree", [])
     ]
     return build_tree(lis)

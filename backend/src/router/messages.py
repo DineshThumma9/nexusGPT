@@ -61,7 +61,6 @@ async def _stream(
             msg_chunk, _meta = chunk
 
             msg_content, _meta = chunk
-            # print(f"Hello I am meta:{_meta.get('langgraph_node')} | Type: {type(msg_chunk).__name__} ")
 
             if hasattr(msg_chunk, "tool_call_chunks") and msg_chunk.tool_call_chunks:
                 continue

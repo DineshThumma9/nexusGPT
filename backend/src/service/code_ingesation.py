@@ -8,6 +8,7 @@ from datetime import datetime
 from time import time
 from typing import Dict, List
 
+import httpx
 from dotenv import load_dotenv
 from langchain_core.documents import Document
 from loguru import logger
@@ -15,20 +16,16 @@ from qdrant_client.models import PointStruct
 from tenacity import retry, stop_after_attempt, wait_exponential
 from tree_sitter_language_pack import ProcessConfig, detect_language_from_path, process
 
+from src.config.settings import settings
 from src.db.neo4j import get_graph
 from src.db.qdrant_client import vector_db
 from src.models.schema import GitRequest, ProjectNode
+from src.service.constants import *
 from src.service.utils import (
     _extract_chunks,
     _extract_structure,
     _unpack_compiled_object,
 )
-
-from src.service.constansts import *
-import httpx
-
-load_dotenv()
-
 
 client = httpx.AsyncClient()
 
@@ -365,8 +362,8 @@ def _insert_to_vectordb(kb_id, ast_docs):
         collection_name=vector_db.collection_name,
         points=points,
         batch_size=batch_size,
+        max_retries=3,
         wait=False,
-        parallel=3,
     )
 
     end = time()
@@ -375,7 +372,7 @@ def _insert_to_vectordb(kb_id, ast_docs):
     )
 
 
-# @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=16, min=2))
 def _insert_to_graphdb(
     kb_id,
     batch_directories,
@@ -387,7 +384,7 @@ def _insert_to_graphdb(
 ):
 
     ns = str(kb_id)
-    graph = get_graph(force_reconnect=True)
+    graph = get_graph()
     driver = graph._driver
 
     start = time()
@@ -490,7 +487,7 @@ def insert_to_databases(
     If Neo4j fails, Qdrant insertion is rolled back.
     """
     ns = str(kb_id)
-    get_graph(force_reconnect=True)
+    get_graph()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         vectordb_task = executor.submit(_insert_to_vectordb, ns, ast_docs)
@@ -540,8 +537,3 @@ def insert_to_databases(
                 print(f"DANGER: Failed to clear Qdrant records: {qd_err}")
 
         raise error_to_raise
-
-
-# ====================================================
-# CELERY BACKGROUND TASKS (Redis Broker & Backend)
-# ====================================================

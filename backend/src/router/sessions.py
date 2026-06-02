@@ -8,11 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import and_, or_
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
 from src.db.dbs import get_db
-from src.models.models import Message, User
+from src.db.redis_client import aredis as redis
+from src.models.models import KnowledgeBase, Message, User
 from src.models.models import Session as SessionModel
 from src.models.schema import (
     ChatMessage,
@@ -24,9 +26,7 @@ from src.models.schema import (
 )
 from src.router.auth import get_current_user
 from src.router.limiter import limiter
-from sqlalchemy.ext.asyncio import AsyncSession
 from src.service.utils import decode_cursor, encode_cursor
-from src.db.redis_client import aredis as redis
 
 
 class CreateSessionRequest(BaseModel):
@@ -82,8 +82,6 @@ async def get_chat_history(
 ):
     """Get messages for a session. Pass `cursor` from previous response to load older messages."""
     query = select(Message).where(Message.session_id == session_id)
-    result = await db.execute(query)
-    query = result.scalars().all()
 
     if cursor:
         timestamp, _id = decode_cursor(cursor)
@@ -99,11 +97,11 @@ async def get_chat_history(
         )
 
     # Fetch limit+1 to detect if there are more pages
-    rows = (
-        query.order_by(Message.timestamp.desc(), Message.message_id.desc())
-        .limit(limit + 1)
-        .all()
+    query = query.order_by(Message.timestamp.desc(), Message.message_id.desc()).limit(
+        limit + 1
     )
+    result = await db.execute(query)
+    rows = result.scalars().all()
 
     has_more = len(rows) > limit
     items = rows[:limit]
@@ -131,7 +129,7 @@ async def update_session_title(
     session_id: str,
     body: TitleUpdateRequest,
     user: User = Depends(get_current_user),
-    db:AsyncSession =Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Update session title"""
     try:
@@ -140,7 +138,7 @@ async def update_session_title(
         raise HTTPException(status_code=400, detail="Invalid session ID format")
 
     try:
-        session_uuid  = session_id
+        session_uuid = session_id
         session_query = select(SessionModel).where(
             SessionModel.session_id == session_uuid
         )
@@ -188,19 +186,34 @@ async def delete_session(
 
     # FIXED: keyword argument updated from 'user' to 'user_id' to match task signature
     try:
-        # 1. Delete all Messages linked to it
-        msg_stmt = select(Message).where(Message.session_id == sid)
-        result = await db.execute(msg_stmt)
-        messages = result.scalars().all()
-        for m in messages:
-            db.delete(m)
-
-        # 2. Delete the Session row itself
+        # 1. Fetch the Session
         session_stmt = select(SessionModel).where(SessionModel.session_id == sid)
         result = await db.execute(session_stmt)
         session_row = result.scalars().first()
+
         if session_row:
-            db.delete(session_row)
+            kb_id_to_check = session_row.kb_id
+
+            # 2. Delete the Session (Messages are now auto-deleted via ORM cascade)
+            await db.delete(session_row)
+            await db.flush()  # Clear FK constraint before checking/deleting the KB
+
+            # 3. Handle orphaned Knowledge Base cleanup
+            if kb_id_to_check:
+                other_sessions_stmt = (
+                    select(SessionModel)
+                    .where(SessionModel.kb_id == kb_id_to_check)
+                    .limit(1)
+                )
+                other_sessions_result = await db.execute(other_sessions_stmt)
+
+                if not other_sessions_result.scalars().first():
+                    kb_stmt = select(KnowledgeBase).where(
+                        KnowledgeBase.kb_id == kb_id_to_check
+                    )
+                    kb_result = await db.execute(kb_stmt)
+                    if kb := kb_result.scalars().first():
+                        await db.delete(kb)
 
         await db.commit()
 

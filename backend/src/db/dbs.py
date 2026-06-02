@@ -9,6 +9,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
+
+from src.config.settings import settings
 from src.models.models import Session
 
 _pool: AsyncConnectionPool | None = None
@@ -27,7 +29,7 @@ _connection_failed = False
 
 def _init_db():
     """Initialize database connection on first use"""
-    global engine, async_engine,SessionLocal,AsyncSessionLocal, _connection_failed
+    global engine, async_engine, SessionLocal, AsyncSessionLocal, _connection_failed
 
     if engine is not None:
         return  # Already initialized
@@ -49,15 +51,18 @@ def _init_db():
             connect_args={"connect_timeout": 5},
         )
         # asyncpg requires the postgresql+asyncpg:// scheme — plain postgresql:// is a sync driver
-        async_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+        async_url = settings.database_url.replace(
+            "postgresql://", "postgresql+asyncpg://", 1
+        )
         async_engine = create_async_engine(
             async_url,
             pool_pre_ping=True,
             pool_recycle=300,
         )
         SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
-        # Must use async_sessionmaker (not sessionmaker) for AsyncSession
-        AsyncSessionLocal = async_sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
+        AsyncSessionLocal = async_sessionmaker(
+            async_engine, class_=AsyncSession, expire_on_commit=False
+        )
         logger.info("Database connection established")
     except Exception as e:
         logger.critical(f"Failed to connect to database: {str(e)}")
@@ -89,7 +94,6 @@ def get_task_db():
         db.close()
 
 
-
 async def create_all_tables():
     # Ensure engine is initialised before using it
     _init_db()
@@ -100,7 +104,7 @@ async def create_all_tables():
 async def init_checkpointer():
     global _pool, _checkpointer
     _pool = AsyncConnectionPool(
-        conninfo=os.getenv("DATABASE_URL"),
+        conninfo=settings.database_url,
         max_size=20,
         max_lifetime=300,
         max_idle=30,

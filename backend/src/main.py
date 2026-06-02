@@ -12,6 +12,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.requests import Request
 
+from src.config.settings import settings
 from src.db import dbs
 from src.db.dbs import (
     _init_db,
@@ -19,7 +20,9 @@ from src.db.dbs import (
     create_all_tables,
     init_checkpointer,
 )
+from src.db.neo4j import close_graph, init_graph
 from src.db.qdrant_client import init_qdrant
+from src.db.redis_client import close_redis, init_redis
 from src.router import (
     auth_router,
     basic_router,
@@ -44,7 +47,8 @@ logging.basicConfig(
 
 logger.add("logs/api.log", rotation="1 MB", retention="10 days", level="INFO")
 
-sentry_dsn = os.getenv("SENTRY_DSN")
+
+sentry_dsn = settings.sentry_dsn
 if sentry_dsn:
     try:
         sentry_sdk.init(
@@ -72,6 +76,7 @@ async def lifespan(app: FastAPI):
     #    doesn't pay the TCP handshake + pool-init cost (~500ms)
     try:
         from sqlalchemy import text
+
         async with dbs.async_engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         logger.info("Async DB pool warmed up")
@@ -80,6 +85,18 @@ async def lifespan(app: FastAPI):
 
     # 3. LangGraph checkpointer
     await init_checkpointer()
+
+    try:
+        init_graph()
+        logger.info("Neo4j initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize Neo4j: {e}")
+
+    try:
+        init_redis()
+        logger.info("Redis initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize Redis: {e}")
 
     # 4. Qdrant collections
     try:
@@ -91,6 +108,8 @@ async def lifespan(app: FastAPI):
     yield
 
     await close_checkpointer()
+    close_graph()
+    await close_redis()
 
 
 # ---------------------------------------------------------

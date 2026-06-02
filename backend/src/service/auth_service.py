@@ -1,7 +1,5 @@
 import datetime
-import os
 
-from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
@@ -12,16 +10,10 @@ from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from src.config.settings import settings
 from src.db.dbs import get_db
 from src.models.models import APIKEYS, RefreshToken, User
 from src.models.schema import Token
-
-load_dotenv()
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("JWT_ALGORITHM")
-ACCESS_TOKEN_EXPIRY_MIN = int(os.getenv("ACCESS_TOKEN_EXPIRY_MIN"))
-REFRESH_TOKEN_EXPIRY_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRY_DAYS"))
-
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
@@ -39,7 +31,9 @@ async def get_current_user(
         raise credentials_exception
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.algorithm]
+        )
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -57,14 +51,22 @@ async def create_tokens(data: dict, db: AsyncSession):
     now = datetime.datetime.utcnow()
 
     access_payload = data.copy()
-    access_payload["exp"] = now + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRY_MIN)
+    access_payload["exp"] = now + datetime.timedelta(
+        minutes=settings.access_token_expiry_min
+    )
 
     refresh_payload = data.copy()
-    refresh_payload["exp"] = now + datetime.timedelta(days=REFRESH_TOKEN_EXPIRY_DAYS)
+    refresh_payload["exp"] = now + datetime.timedelta(
+        days=settings.refresh_token_expiry_days
+    )
 
     try:
-        access_token = jwt.encode(access_payload, SECRET_KEY, algorithm=ALGORITHM)
-        refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm=ALGORITHM)
+        access_token = jwt.encode(
+            access_payload, settings.secret_key, algorithm=settings.algorithm
+        )
+        refresh_token = jwt.encode(
+            refresh_payload, settings.secret_key, algorithm=settings.algorithm
+        )
     except Exception:
         logger.exception("JWT encoding failed")
         return JSONResponse(
@@ -75,7 +77,7 @@ async def create_tokens(data: dict, db: AsyncSession):
     db_token = RefreshToken(
         email=email,
         token=refresh_token,
-        expiry_date=now + datetime.timedelta(days=REFRESH_TOKEN_EXPIRY_DAYS),
+        expiry_date=now + datetime.timedelta(days=settings.refresh_token_expiry_days),
     )
 
     try:
@@ -90,7 +92,9 @@ async def create_tokens(data: dict, db: AsyncSession):
     return JSONResponse(content=tokens.model_dump(), status_code=200)
 
 
-async def get_all_api_keys(user=Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_all_api_keys(
+    user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(APIKEYS).where(APIKEYS.user_id == user.userid))
     api_val_keys = result.scalars().all()
     return {entry.provider: entry.encrypted_key for entry in api_val_keys}
