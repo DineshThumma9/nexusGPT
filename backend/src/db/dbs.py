@@ -1,7 +1,5 @@
-import os
 from contextlib import contextmanager
 
-from dotenv import load_dotenv
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from loguru import logger
 from psycopg_pool import AsyncConnectionPool
@@ -17,8 +15,6 @@ _pool: AsyncConnectionPool | None = None
 _checkpointer: AsyncPostgresSaver | None = None
 
 
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = None
 async_engine = None
@@ -37,7 +33,7 @@ def _init_db():
     if _connection_failed:
         raise RuntimeError("Database connection was already attempted and failed")
 
-    if not DATABASE_URL:
+    if not settings.database_url:
         logger.critical("DATABASE_URL environment variable not set")
         _connection_failed = True
         raise RuntimeError("DATABASE_URL not configured")
@@ -45,14 +41,14 @@ def _init_db():
     try:
         logger.info("Connecting to database...")
         engine = create_engine(
-            DATABASE_URL,
+            settings.database_url,
             pool_pre_ping=True,
             pool_recycle=300,
             connect_args={"connect_timeout": 5},
         )
-        # asyncpg requires the postgresql+asyncpg:// scheme — plain postgresql:// is a sync driver
+        # psycopg requires the postgresql+psycopg:// scheme for async operations
         async_url = settings.database_url.replace(
-            "postgresql://", "postgresql+asyncpg://", 1
+            "postgresql://", "postgresql+psycopg://", 1
         )
         async_engine = create_async_engine(
             async_url,
