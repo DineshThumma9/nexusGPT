@@ -15,7 +15,6 @@ _pool: AsyncConnectionPool | None = None
 _checkpointer: AsyncPostgresSaver | None = None
 
 
-
 engine = None
 async_engine = None
 SessionLocal = None
