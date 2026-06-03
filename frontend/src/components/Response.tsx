@@ -25,13 +25,13 @@ const Response = () => {
   };
 
   const vstack = {
-    gap: 6,
+    gap: 8,
     align: "stretch" as const,
     w: "full",
-    maxW: "4xl",
+    maxW: "5xl",
     bg: "bg.canvas",
     mx: "auto",
-    px: 4,
+    px: { base: 4, md: 8 },
     py: 8,
   };
 
@@ -97,7 +97,7 @@ const Response = () => {
       {messages.length === 0 && !isWaitingForIndexing ? (
         <EmptyState />
       ) : (
-        <Box w="full" pt={{ base: 24, md: 20 }} pb={6}>
+        <Box w="full" pt={{ base: 20, md: 16 }} pb={{ base: 24, md: 20 }}>
           <VStack {...vstack}>
             <AnimatePresence initial={false}>
               {messages.map((msg, idx) => (

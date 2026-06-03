@@ -21,10 +21,16 @@ from src.models import models
 # access to the values within the .ini file in use.
 config = context.config
 
-# Instantiate settings
+# psycopg v3 (the `psycopg` package) is the async PostgreSQL driver — it speaks
+# libpq natively so Neon's sslmode=require & channel_binding=require work as-is.
+# No URL mangling needed unlike asyncpg which has its own incompatible SSL API.
+from sqlalchemy.engine.url import make_url
+
 settings = Settings()
-async_url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-config.set_main_option("sqlalchemy.url", async_url)
+
+_url = make_url(settings.database_url).set(drivername="postgresql+psycopg")
+config.set_main_option("sqlalchemy.url", str(_url))
+
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:

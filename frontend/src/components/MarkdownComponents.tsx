@@ -234,15 +234,16 @@ export const createMarkdownComponents = (
   h1: ({ children }) => (
     <Text
       as="h1"
-      fontSize="24px"
-      fontWeight="700"
+      fontSize="26px"
+      fontWeight="800"
       mb={5}
       mt={8}
-      color={"fg"}
+      color={{ base: "gray.900", _dark: "white" }}
       borderBottom="2px solid"
-      borderColor={"colorPalette.500"}
+      borderColor="brand.600"
       pb={2}
-      lineHeight="1.3"
+      lineHeight="1.25"
+      letterSpacing="-0.02em"
     >
       {children}
     </Text>
@@ -252,11 +253,12 @@ export const createMarkdownComponents = (
     <Text
       as="h2"
       fontSize="20px"
-      fontWeight="600"
+      fontWeight="700"
       mb={4}
-      mt={6}
-      color={"fg"}
-      lineHeight="1.4"
+      mt={7}
+      color={{ base: "gray.800", _dark: "gray.100" }}
+      lineHeight="1.35"
+      letterSpacing="-0.01em"
     >
       {children}
     </Text>
@@ -264,33 +266,34 @@ export const createMarkdownComponents = (
   h3: ({ children }) => (
     <Text
       as="h3"
-      fontSize="18px"
+      fontSize="17px"
       fontWeight="600"
       mb={3}
       mt={5}
-      color={"fg"}
+      color={{ base: "gray.700", _dark: "gray.200" }}
       lineHeight="1.4"
     >
       {children}
     </Text>
   ),
   ol: ({ children }) => (
-    <List.Root as="ol" mb={4} pl={6} color={"fg"}>
-      <Box css={{ "& li": { marginBottom: "4px" } }}>{children}</Box>
+    <List.Root as="ol" mb={5} pl={6} color="fg" gap={1}>
+      {children}
     </List.Root>
   ),
   ul: ({ children }) => (
-    <List.Root as="ul" mb={4} pl={6} color={"fg"}>
-      <Box css={{ "& li": { marginBottom: "4px" } }}>{children}</Box>
+    <List.Root as="ul" mb={5} pl={6} color="fg" gap={1}>
+      {children}
     </List.Root>
   ),
   li: ({ children }) => (
     <List.Item
-      mb={1}
-      color={"fg"}
-      lineHeight="1.6"
+      mb={2}
+      color="fg"
+      lineHeight="1.7"
       overflowWrap="break-word"
       wordBreak="normal"
+      fontSize="16px"
     >
       {children}
     </List.Item>
@@ -299,17 +302,17 @@ export const createMarkdownComponents = (
 
   blockquote: ({ children }) => (
     <Blockquote.Root
-      bg={"bg.muted"}
-      borderRadius="md"
-      color={"fg.subtle"}
-      my={4}
-      pl={4}
+      bg={{ base: "rgba(99,102,241,0.05)", _dark: "rgba(99,102,241,0.08)" }}
+      borderRadius="lg"
+      color="fg.default"
+      my={5}
+      pl={5}
       pr={4}
-      py={3}
-      borderLeft="4px solid"
-      borderColor={"colorPalette.500"}
+      py={4}
+      borderLeft="3px solid"
+      borderColor="brand.600"
       fontSize="16px"
-      lineHeight="1.6"
+      lineHeight="1.7"
       fontStyle="italic"
     >
       <Blockquote.Content>{children}</Blockquote.Content>
@@ -365,20 +368,28 @@ export const createMarkdownComponents = (
   // ),
 
   table: ({ children }) => (
-    <Table.Root
-      size="sm"
-      my="lg"
-      css={{
-        borderRadius: "md",
-        overflow: "hidden",
-        border: "1px solid",
-        borderColor: "border.subtle",
-        bg: "bg.panel",
-        width: "100%",
-      }}
+    <Box
+      overflowX="auto"
+      my={6}
+      borderRadius="xl"
+      border="1px solid"
+      borderColor="border.default"
+      boxShadow="0 2px 12px -4px rgba(0,0,0,0.08)"
+      css={{ WebkitOverflowScrolling: "touch" }}
     >
-      {children}
-    </Table.Root>
+      <Table.Root
+        size="md"
+        css={{
+          borderRadius: "xl",
+          overflow: "hidden",
+          bg: "bg.surface",
+          width: "100%",
+          minWidth: "600px",
+        }}
+      >
+        {children}
+      </Table.Root>
+    </Box>
   ),
 
   caption: ({ children }) => (
@@ -415,7 +426,11 @@ export const createMarkdownComponents = (
   ),
 
   thead: ({ children }) => (
-    <Table.Header bg={"bg.muted"} color={"fg.subtle"} fontWeight="bold">
+    <Table.Header
+      bg={{ base: "gray.100", _dark: "rgba(255,255,255,0.06)" }}
+      color="fg.default"
+      fontWeight="bold"
+    >
       {children}
     </Table.Header>
   ),
@@ -423,10 +438,12 @@ export const createMarkdownComponents = (
   tbody: ({ children }) => (
     <Table.Body
       css={{
-        "& tr:nth-of-type(odd)": { bg: "bg.muted" },
+        "& tr:nth-of-type(odd)": {
+          bg: { base: "gray.50", _dark: "rgba(255,255,255,0.025)" },
+        },
         "& tr:nth-of-type(even)": { bg: "transparent" },
       }}
-      color={"colorPalette.500"}
+      color="fg.default"
     >
       {children}
     </Table.Body>
@@ -440,10 +457,10 @@ export const createMarkdownComponents = (
 
   tr: ({ children }) => (
     <Table.Row
-      bg="bg.panel"
-      _hover={{ bg: "bg.subtle" }}
+      _hover={{ bg: { base: "blue.50", _dark: "rgba(99,102,241,0.07)" } }}
       borderBottom="1px solid"
-      borderColor={"border.subtle"}
+      borderColor="border.subtle"
+      transition="background 0.15s ease"
     >
       {children}
     </Table.Row>
@@ -451,12 +468,17 @@ export const createMarkdownComponents = (
 
   th: ({ children }) => (
     <Table.ColumnHeader
-      color={"fg.subtle"}
-      fontWeight="bold"
+      color="fg.default"
+      fontWeight="700"
+      fontSize="13px"
+      letterSpacing="0.04em"
+      textTransform="uppercase"
       borderBottom="2px solid"
-      borderColor={"colorPalette.500"}
-      p="md"
+      borderColor="border.emphasized"
+      px={5}
+      py={3}
       textAlign="left"
+      whiteSpace="nowrap"
     >
       {children}
     </Table.ColumnHeader>
@@ -464,10 +486,13 @@ export const createMarkdownComponents = (
 
   td: ({ children }) => (
     <Table.Cell
-      color={"fg"}
+      color="fg.default"
       borderBottom="1px solid"
-      borderColor={"border.subtle"}
-      p="md"
+      borderColor="border.subtle"
+      px={5}
+      py={3}
+      fontSize="15px"
+      lineHeight="1.6"
     >
       {children}
     </Table.Cell>

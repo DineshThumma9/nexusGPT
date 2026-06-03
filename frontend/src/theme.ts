@@ -143,6 +143,12 @@ const semanticTokens = {
         _dark: "#0b0c10",
       },
     },
+    "bg.sidebar": {
+      value: {
+        base: "#e8ecf2",
+        _dark: "#060709",
+      },
+    },
     "bg.surface": {
       value: {
         base: "#ffffff",

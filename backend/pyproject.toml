@@ -17,8 +17,8 @@ dependencies = [
     "python-jose>=3.5.0",
     # Database & Async Drivers
     "sqlmodel>=0.0.38",
-    "asyncpg>=0.30.0",
-    "psycopg2-binary>=2.9.9",
+    "psycopg[binary]>=3.1.0",   # async driver — understands Neon's sslmode natively
+    "psycopg2-binary>=2.9.9",   # kept for langgraph-checkpoint-postgres (sync/Celery)
     "redis>=5.2.0",
     # LangChain, LangGraph & Orchestration
     "celery>=5.6.3",

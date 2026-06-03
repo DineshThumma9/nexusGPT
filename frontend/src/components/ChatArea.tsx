@@ -13,40 +13,49 @@ interface ChatAreaProps {
 }
 
 const ChatArea = ({ onOpenSidebar }: ChatAreaProps) => {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [modelChooserOpen, setModelChooserOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = sessionStore.subscribe(() => {
-      // Message updates handled by Response component
-    });
+    const unsubscribe = sessionStore.subscribe(() => {});
     return unsubscribe;
   }, []);
 
-  const chatAreaVstack = {
-    flex: "1",
-    gap: "0",
-    h: "100vh",
-    bg: "bg.canvas",
-    overflow: "hidden",
-    position: "relative",
-  };
-
-  const Hstackprops = {
+  // ── header bar: floats over chat, transparent background ──
+  const headerStyles = {
     justifyContent: "space-between",
     alignItems: "center",
-    position: "absolute",
+    position: "absolute" as const,
     top: 0,
-    w: "full",
+    left: 0,
+    right: 0,
     bg: "transparent",
     zIndex: 100,
     px: { base: 2, md: 6 },
     pt: { base: 2, md: 2 },
   };
 
+  // ── input bar: floats over chat at the bottom, same treatment as header ──
+  const footerStyles = {
+    position: "absolute" as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    // No background here — SendRequest itself handles the glass pill
+    bg: "transparent",
+    pointerEvents: "none" as const, // let clicks pass through the transparent gap
+  };
+
   return (
-    <VStack {...chatAreaVstack}>
-      <HStack {...Hstackprops}>
+    <Box
+      flex="1"
+      h="100vh"
+      bg="bg.canvas"
+      overflow="hidden"
+      position="relative"
+    >
+      {/* ── Floating header ── */}
+      <HStack {...headerStyles}>
         <HStack gap={1} minW={0} flex="1" overflow="hidden">
           {/* Hamburger — mobile only */}
           <IconButton
@@ -87,7 +96,7 @@ const ChatArea = ({ onOpenSidebar }: ChatAreaProps) => {
         <AvaterExpandable />
       </HStack>
 
-      {/* Mobile model chooser collapsible content - rendered absolutely below header */}
+      {/* Mobile model chooser dropdown */}
       <Collapsible.Root
         open={modelChooserOpen}
         display={{ base: "block", md: "none" }}
@@ -114,12 +123,19 @@ const ChatArea = ({ onOpenSidebar }: ChatAreaProps) => {
         </Collapsible.Content>
       </Collapsible.Root>
 
-      <Response />
+      {/* ── Messages scroll area — fills full height, padded so content clears header & input ── */}
+      <Box h="100%" overflow="hidden">
+        <Response />
+      </Box>
 
-      <SendRequest />
-
-      <div ref={scrollRef}></div>
-    </VStack>
+      {/* ── Floating input — absolutely pinned at bottom, transparent gap visible ── */}
+      <Box {...footerStyles}>
+        {/* Re-enable pointer events only on the pill itself (handled inside SendRequest) */}
+        <Box pointerEvents="auto">
+          <SendRequest />
+        </Box>
+      </Box>
+    </Box>
   );
 };
 

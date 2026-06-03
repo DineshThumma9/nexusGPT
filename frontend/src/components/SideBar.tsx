@@ -29,13 +29,13 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
 
   const boxStyles = {
     transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-    bg: "bg.canvas",
+    bg: "bg.sidebar",
     color: "fg.default",
     h: "100vh",
     p: 2,
     overflow: "hidden",
     borderRight: "1px solid",
-    borderColor: "border.subtle",
+    borderColor: "border.emphasized",
     position: "relative" as const,
   };
 
@@ -167,6 +167,7 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
       w={{ base: "full", md: collapsed ? "50px" : "240px" }}
       {...boxStyles}
       borderRight={{ base: "none", md: "1px solid" }}
+      borderColor={{ base: "transparent", md: "border.emphasized" }}
     >
       <Button
         width={collapsed ? "28px" : "40px"}

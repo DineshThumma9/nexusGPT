@@ -343,7 +343,7 @@ async def make_tools(
     )
     def search_documents(query: str):
         """
-        This tool provides a way to semantic-search the user's uploaded documents (like PDFs) 
+        This tool provides a way to semantic-search the user's uploaded documents (like PDFs)
         and provides context to answer their query.
         """
         if not vector_db:
@@ -354,7 +354,7 @@ async def make_tools(
             return "Error: Please provide a search query."
 
         docs = vector_db.similarity_search(query, k=5)
-        
+
         if not docs:
             return "No relevant document context found."
 

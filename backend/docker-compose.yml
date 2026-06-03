@@ -11,10 +11,10 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - QDRANT_URL=http://qdrantdb:6333
+      - ENV_FILE=.env
     depends_on:
       - redis
       - qdrantdb
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 2
 
   celery:
     build:
@@ -26,6 +26,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - QDRANT_URL=http://qdrantdb:6333
+      - ENV_FILE=.env
     depends_on:
       - redis
       - qdrantdb

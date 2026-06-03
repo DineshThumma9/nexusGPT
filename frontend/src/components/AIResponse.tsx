@@ -55,16 +55,20 @@ interface Props {
 }
 
 const getMessageBox = () => ({
-  p: 6,
+  px: { base: 5, md: 8 },
+  py: 6,
   borderRadius: "3xl",
-  backgroundColor: "bg.panel",
+  backgroundColor: { base: "white", _dark: "#12131a" },
   border: "1px solid",
-  borderColor: "border.subtle",
+  borderColor: "border.default",
   position: "relative" as const,
-  boxShadow: "0 4px 20px -5px rgba(0, 0, 0, 0.05)",
+  boxShadow: {
+    base: "0 2px 16px -4px rgba(0,0,0,0.06), 0 1px 4px -2px rgba(0,0,0,0.04)",
+    _dark: "none",
+  },
   transition: "all 0.3s ease",
   css: {
-    lineHeight: "1.7",
+    lineHeight: "1.8",
     fontSize: "16px",
     color: "fg.default",
     textRendering: "optimizeLegibility",
@@ -167,7 +171,7 @@ const AIResponse = ({ msg, idx }: Props) => {
       gap={2}
       bg={"bg.canvas"}
     >
-      <Box flex="1" minW={0} maxW="800px" mx="auto">
+      <Box flex="1" minW={0} w="100%">
         <Box>
           <Box {...messageBox}>
             <Box

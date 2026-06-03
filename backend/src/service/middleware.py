@@ -59,28 +59,28 @@ class CleanToolMessagesMiddleware(AgentMiddleware):
 def middleware_setup():
     summarization = SummarizationMiddleware(
         model=ChatGroq(model=settings.summarization_llm),
-        trigger=[("messages", 10), ("tokens", 6000)],
-        keep=("messages", 8),
+        trigger=[
+            ("messages", settings.message_limit),
+            ("tokens", settings.token_limit),
+        ],
+        keep=("messages", settings.keep_message_limit),
         summarization_prompt=summarization_prompt,
     )
 
-    # Caps the LLM thinking loops (e.g. LLM getting confused and talking to itself)
     call_tracker = ModelCallLimitMiddleware(
-        thread_limit=50,
-        run_limit=6,  # Slightly higher than tool limit to allow a final synthesis call
-        exit_behavior="end",
+        thread_limit=settings.model_thread_limit,
+        run_limit=settings.model_run_limit,
+        exit_behavior=settings.model_exit_behavior,
     )
 
-    # Caps the actual tool execution (RAG searches, MCP actions)
     tool_tracker = ToolCallLimitMiddleware(
-        thread_limit=50,
-        run_limit=7,  # Your ideal 5 calls per "round"
-        exit_behavior="continue",  # Forces the LLM to summarize its failures rather than crashing
+        thread_limit=settings.tool_thread_limit,
+        run_limit=settings.tool_run_limit,
+        exit_behavior=settings.tool_exit_behaviour,
     )
 
     orphan_cleaner = CleanToolMessagesMiddleware()
 
-    # Order matters: Clean orphans first, track limits, then summarize if needed
     return [
         handle_tool_errors,
         orphan_cleaner,

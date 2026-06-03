@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     max_size_raw_mb: int = 50
     max_files_processable: int = 250
     max_size_processable_mb: int = 8
+    model_run_limit: int = 5
+    model_thread_limit: int = 50
+    model_exit_behavior: str = "end"
+    tool_run_limit: int = 5
+    tool_thread_limit: int = 50
+    tool_exit_behaviour: str = "continue"
+    message_limit: int = 10
+    token_limit: int = 6000
+    keep_message_limit: int = 8
 
 
 @lru_cache()

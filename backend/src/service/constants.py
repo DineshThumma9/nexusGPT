@@ -5,10 +5,13 @@ ALWAYS_SKIP = {
     "package-lock.json",
     "yarn.lock",
     "pnpm-lock.yaml",
+    "bun.lockb",
     "poetry.lock",
+    "Pipfile.lock",
     "Cargo.lock",
     "composer.lock",
     "Gemfile.lock",
+    "mix.lock",
     ".DS_Store",
     "Thumbs.db",
 }
@@ -18,47 +21,79 @@ SKIP_DIRS = {
     "dist/",
     "build/",
     "out/",
+    "target/",
+    "bin/",
+    "obj/",
     ".next/",
     ".nuxt/",
+    ".svelte-kit/",
+    ".expo/",
+    ".angular/",
     "__pycache__/",
     "node_modules/",
+    "vendor/",
+    ".venv/",
+    "venv/",
+    "env/",
+    ".tox/",
     ".git/",
     ".idea/",
     ".vscode/",
     "coverage/",
     ".pytest_cache/",
-    "src/assets",
-    "public/"
-    
+    "src/assets/",
+    "public/",
+    "static/",
 }
 
 # Skip these extensions
 SKIP_EXTENSIONS = {
+    # Minified / Bundles
     ".min.js",
     ".min.css",
     ".bundle.js",
+    ".map",  # sourcemaps
+    # Compiled binaries
     ".pyc",
     ".pyo",
     ".class",
     ".o",
     ".so",
+    ".dll",
+    ".exe",
+    ".bin",
+    # Media & Assets
     ".png",
     ".jpg",
     ".jpeg",
     ".gif",
     ".ico",
     ".svg",
+    ".webp",
+    ".tiff",
+    # Fonts
     ".woff",
     ".woff2",
     ".ttf",
+    ".otf",
     ".eot",
+    # Archives & Databases
     ".zip",
     ".tar",
     ".gz",
     ".rar",
+    ".sqlite",
+    ".sqlite3",
+    ".db",
+    # Audio/Video
     ".mp4",
+    ".webm",
+    ".avi",
+    ".mov",
     ".mp3",
     ".wav",
+    # Logs
+    ".log",
 }
 
 # Parse these as plain text (skip tree-sitter, store as single chunk)

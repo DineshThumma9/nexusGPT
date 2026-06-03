@@ -79,6 +79,17 @@ const getTextareaStyle = (isValid: boolean): React.CSSProperties => ({
   boxSizing: "border-box",
 });
 
+const PLACEHOLDER_JSON = `[
+  {
+    "type": "sse",
+    "server_url": "",
+    "auth_header": "Authorization",
+    "api_key": "",
+    "version": "1.0",
+    "gallery": ""
+  }
+]`;
+
 export const McpConfigDialog = ({ onClose, onError }: Props) => {
   const [rawJson, setRawJson] = useState("");
   const [loading, setLoading] = useState(false);
@@ -106,7 +117,7 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
         type: "error",
       });
       // Fallback to empty default structure
-      setRawJson(JSON.stringify([], null, 2));
+      setRawJson(PLACEHOLDER_JSON);
     } finally {
       setLoading(false);
     }
@@ -374,7 +385,7 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                           onChange={(e) => setRawJson(e.target.value)}
                           disabled={loading}
                           style={getTextareaStyle(isValid)}
-                          placeholder={`[\n  {\n    "type": "sse",\n    "server_url": "https://..."\n  }\n]`}
+                          placeholder={PLACEHOLDER_JSON}
                         />
                       )}
                     </Box>
@@ -500,9 +511,23 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
                         </CodeBlock.Root>
                       </CodeBlockAdapterProvider>
                     ) : (
-                      <Text fontSize="sm" color="fg.muted" fontStyle="italic">
-                        No config contents to preview.
-                      </Text>
+                      <CodeBlockAdapterProvider value={shikiAdapter}>
+                        <CodeBlock.Root
+                          code={PLACEHOLDER_JSON}
+                          language="json"
+                          size="sm"
+                        >
+                          <CodeBlock.Content p={0}>
+                            <CodeBlock.Code
+                              p={0}
+                              bg="transparent"
+                              border="none"
+                            >
+                              <CodeBlock.CodeText />
+                            </CodeBlock.Code>
+                          </CodeBlock.Content>
+                        </CodeBlock.Root>
+                      </CodeBlockAdapterProvider>
                     )}
                   </Box>
                 )}
