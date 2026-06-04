@@ -43,8 +43,8 @@ def _init_db():
             settings.database_url,
             pool_pre_ping=True,
             pool_recycle=300,
-            pool_size=20,
-            max_overflow=20,
+            pool_size=5,
+            max_overflow=5,
             connect_args={"connect_timeout": 5},
         )
         # psycopg requires the postgresql+psycopg:// scheme for async operations
@@ -55,8 +55,8 @@ def _init_db():
             async_url,
             pool_pre_ping=True,
             pool_recycle=300,
-            pool_size=20,
-            max_overflow=20,
+            pool_size=5,
+            max_overflow=5,
         )
         SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
         AsyncSessionLocal = async_sessionmaker(

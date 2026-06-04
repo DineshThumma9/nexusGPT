@@ -79,5 +79,5 @@ backend/graphify-out/
 backend/graphify-out/rules
 backend/graphify-out/workflows
 graphify-out/
+backend/locus/*
 backend/locustfile.py
-backend/loc200.csv
