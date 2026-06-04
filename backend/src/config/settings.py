@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     token_limit: int = 6000
     keep_message_limit: int = 8
 
+    # DB connection pool tuning — change these in .env without redeploying
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
+    db_pool_timeout: int = 5
+    db_pool_recycle: int = 300
+    db_checkpointer_pool_size: int = 5
+
 
 @lru_cache()
 def get_settings() -> Settings:

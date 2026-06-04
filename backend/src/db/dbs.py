@@ -42,9 +42,10 @@ def _init_db():
         engine = create_engine(
             settings.database_url,
             pool_pre_ping=True,
-            pool_recycle=300,
-            pool_size=5,
-            max_overflow=5,
+            pool_recycle=settings.db_pool_recycle,
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
+            pool_timeout=settings.db_pool_timeout,
             connect_args={"connect_timeout": 5},
         )
         # psycopg requires the postgresql+psycopg:// scheme for async operations
@@ -54,9 +55,10 @@ def _init_db():
         async_engine = create_async_engine(
             async_url,
             pool_pre_ping=True,
-            pool_recycle=300,
-            pool_size=5,
-            max_overflow=5,
+            pool_recycle=settings.db_pool_recycle,
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
+            pool_timeout=settings.db_pool_timeout,
         )
         SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
         AsyncSessionLocal = async_sessionmaker(
@@ -75,8 +77,14 @@ async def get_db():
         try:
             yield session
         except Exception as e:
-            logger.error(f"Database error: {e}")
+            error_str = str(e)
             await session.rollback()
+            # If Neon rate-limits us (429), the pool fills with broken connections.
+            # Dispose immediately so the pool rebuilds fresh instead of cascading.
+            if "429" in error_str or "QueuePool" in error_str:
+                logger.warning("DB pool pressure detected — disposing pool to recover")
+                await async_engine.dispose()
+            logger.error(f"Database error: {e}")
             raise
 
 
@@ -102,13 +110,11 @@ async def create_all_tables():
 
 async def init_checkpointer():
     global _pool, _checkpointer
-    # Use psycopg-compatible scheme for the async connection pool
-    psycopg_url = settings.database_url.replace(
-        "postgresql://", "postgresql+psycopg://", 1
-    )
+    # psycopg_pool uses raw psycopg3 DSN — plain postgresql:// is correct here
+    # (postgresql+psycopg:// is SQLAlchemy-only and will break psycopg_pool)
     _pool = AsyncConnectionPool(
-        conninfo=psycopg_url,
-        max_size=5,
+        conninfo=settings.database_url,
+        max_size=settings.db_checkpointer_pool_size,
         max_lifetime=300,
         max_idle=30,
         kwargs={
