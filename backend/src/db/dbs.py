@@ -77,13 +77,7 @@ async def get_db():
         try:
             yield session
         except Exception as e:
-            error_str = str(e)
             await session.rollback()
-            # If Neon rate-limits us (429), the pool fills with broken connections.
-            # Dispose immediately so the pool rebuilds fresh instead of cascading.
-            if "429" in error_str or "QueuePool" in error_str:
-                logger.warning("DB pool pressure detected — disposing pool to recover")
-                await async_engine.dispose()
             logger.error(f"Database error: {e}")
             raise
 
