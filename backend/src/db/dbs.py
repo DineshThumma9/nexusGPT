@@ -102,9 +102,13 @@ async def create_all_tables():
 
 async def init_checkpointer():
     global _pool, _checkpointer
+    # Use psycopg-compatible scheme for the async connection pool
+    psycopg_url = settings.database_url.replace(
+        "postgresql://", "postgresql+psycopg://", 1
+    )
     _pool = AsyncConnectionPool(
-        conninfo=settings.database_url,
-        max_size=20,
+        conninfo=psycopg_url,
+        max_size=5,
         max_lifetime=300,
         max_idle=30,
         kwargs={
