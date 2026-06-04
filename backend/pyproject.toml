@@ -66,6 +66,7 @@ dependencies = [
     "uvloop>=0.22.1",
     "gunicorn>=26.0.0",
     "alembic>=1.18.4",
+    "locust>=2.44.1",
 ]
 
 [dependency-groups]
