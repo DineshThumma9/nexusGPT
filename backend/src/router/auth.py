@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 
 import bcrypt
@@ -35,7 +36,7 @@ async def register(user: UserPayload, db: AsyncSession = Depends(get_db)):
     hash_password = hashlib.sha256(user.password.encode()).hexdigest()
     salt = bcrypt.gensalt()
 
-    hashed_password = bcrypt.hashpw(hash_password.encode("utf-8"), salt).decode("utf-8")
+    hashed_password = (await asyncio.to_thread(bcrypt.hashpw, hash_password.encode("utf-8"), salt)).decode("utf-8")
 
     new_user = User(username=user.username, email=user.email, hpassword=hashed_password)
 
@@ -60,9 +61,10 @@ async def login(
 
     hash_password = hashlib.sha256(form_data.password.encode("utf-8")).hexdigest()
 
-    if not user or not bcrypt.checkpw(
-        hash_password.encode("utf-8"), user.hpassword.encode("utf-8")
-    ):
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    password_valid = await asyncio.to_thread(bcrypt.checkpw, hash_password.encode("utf-8"), user.hpassword.encode("utf-8"))
+    if not password_valid:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     return await create_tokens({"sub": user.email}, db)

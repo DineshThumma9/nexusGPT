@@ -1,4 +1,5 @@
 import datetime
+import uuid
 
 from fastapi import Depends, HTTPException
 from fastapi.responses import JSONResponse
@@ -54,11 +55,13 @@ async def create_tokens(data: dict, db: AsyncSession):
     access_payload["exp"] = now + datetime.timedelta(
         minutes=settings.access_token_expiry_min
     )
+    access_payload["jti"] = uuid.uuid4().hex
 
     refresh_payload = data.copy()
     refresh_payload["exp"] = now + datetime.timedelta(
         days=settings.refresh_token_expiry_days
     )
+    refresh_payload["jti"] = uuid.uuid4().hex
 
     try:
         access_token = jwt.encode(
