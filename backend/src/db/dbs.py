@@ -59,6 +59,7 @@ def _init_db():
             pool_size=settings.db_pool_size,
             max_overflow=settings.db_max_overflow,
             pool_timeout=settings.db_pool_timeout,
+            connect_args={"prepare_threshold": None},
         )
         SessionLocal = sessionmaker(autoflush=False, autocommit=False, bind=engine)
         AsyncSessionLocal = async_sessionmaker(
@@ -113,7 +114,7 @@ async def init_checkpointer():
         max_idle=30,
         kwargs={
             "autocommit": True,
-            "prepare_threshold": 0,
+            "prepare_threshold": None,
             "keepalives": 1,
             "keepalives_idle": 10,
             "keepalives_interval": 10,

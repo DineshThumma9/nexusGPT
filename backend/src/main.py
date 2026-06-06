@@ -31,6 +31,7 @@ from src.router import (
     session_router,
 )
 from src.router.limiter import limiter
+from src.router.setup import close_http_client
 
 # ---------------------------------------------------------
 # 1. Configuration & Global Setup
@@ -110,6 +111,7 @@ async def lifespan(app: FastAPI):
     await close_checkpointer()
     close_graph()
     await close_redis()
+    await close_http_client()
 
 
 # ---------------------------------------------------------

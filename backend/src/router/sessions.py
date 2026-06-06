@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -246,6 +247,20 @@ async def get_all_sessions(
 ):
     """Get sessions for the current user with cursor-based pagination."""
     try:
+        # Generate cache key including pagination parameters
+        cache_key = f"sessions_all:{user.userid}:{limit}:{cursor or 'none'}"
+        
+        # Try to get from cache first
+        try:
+            cached = await redis.get(cache_key)
+            if cached:
+                logger.info(f"Cache hit for {cache_key}")
+                import json
+                return PaginatedSessionResponse(**json.loads(cached))
+        except Exception as e:
+            logger.warning(f"Redis read error: {e}")
+            # Continue to DB if cache fails
+        
         from src.models.models import KnowledgeBase
 
         query = (
@@ -294,11 +309,26 @@ async def get_all_sessions(
                 str(last.session_id),
             )
 
-        return PaginatedSessionResponse(
+        response = PaginatedSessionResponse(
             sessions=session_list,
             next_cursor=next_cursor,
             has_more=has_more,
         )
+        
+        # Cache the response for 60 seconds
+        try:
+            import json
+            await redis.setex(
+                cache_key, 
+                60,  # TTL: 60 seconds
+                json.dumps(response.model_dump(), default=str)
+            )
+            logger.info(f"Cached response for {cache_key}")
+        except Exception as e:
+            logger.warning(f"Redis write error: {e}")
+            # Continue even if cache write fails
+        
+        return response
 
     except Exception as e:
         logger.error(f"Error fetching sessions for user {user.userid}: {str(e)}")

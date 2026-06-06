@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db import get_db
-from src.db.redis_client import sredis as redis
+from src.db.redis_client import aredis as redis
 from src.models.models import APIKEYS, User, UserLLMConfig, UserMCPConfig
 from src.models.schema import API_KEY_REQUEST, API_KEY_RESPONSE, MCPModel
 from src.router.auth import get_current_user
@@ -25,6 +25,28 @@ from src.service.utils import decrypt, encrypt
 load_dotenv()
 router = APIRouter()
 
+# Global httpx client with connection pooling
+_http_client: httpx.AsyncClient | None = None
+
+
+def get_http_client() -> httpx.AsyncClient:
+    """Get or create a shared httpx async client with connection pooling."""
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            timeout=5.0,  # 5 second timeout (was 8)
+        )
+    return _http_client
+
+
+async def close_http_client():
+    """Close the shared httpx client (call on app shutdown)."""
+    global _http_client
+    if _http_client:
+        await _http_client.aclose()
+        _http_client = None
+
 # ---------------------------------------------------------------------------
 # API key validation: cheap test call to each provider's models endpoint
 # ---------------------------------------------------------------------------
@@ -36,20 +58,22 @@ async def _validate_api_key(provider: str, api_key: str) -> Tuple[bool, str]:
     if not url:
         return True, ""  # Unknown provider — don't block
 
-    client = httpx.AsyncClient()
+    client = get_http_client()
     try:
         if provider == "google_genai":
-            r = await client.get(f"{url}?key={api_key}", timeout=8)
+            r = await client.get(f"{url}?key={api_key}")
         elif provider == "anthropic":
             r = await client.get(
                 url,
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
-                timeout=8,
             )
         else:
             r = await client.get(
-                url, headers={"Authorization": f"Bearer {api_key}"}, timeout=8
+                url, headers={"Authorization": f"Bearer {api_key}"}
             )
+    except httpx.TimeoutException:
+        logger.warning(f"Key validation timeout for {provider} (5s)")
+        return True, ""  # Timeout — don't block, assume valid
     except Exception as e:
         logger.warning(f"Key validation network error for {provider}: {e}")
         return True, ""  # Network issue — don't block saving
@@ -277,11 +301,14 @@ async def get_mcp_config(
 
     cache_key = f"mcp_config_ui:{user.userid}"
     try:
-        cached_ui_config = redis.get(cache_key)
+        # Use async Redis client for non-blocking I/O
+        cached_ui_config = await redis.get(cache_key)
         if cached_ui_config:
+            logger.info(f"Cache hit for {cache_key}")
             return json.loads(cached_ui_config)
     except Exception as e:
-        logger.error(f"Redis get error: {e}")
+        logger.warning(f"Redis get error: {e}")
+        # Continue to DB if cache fails
 
     mcp_configs = (
         (
@@ -300,8 +327,15 @@ async def get_mcp_config(
         result.append(MCPModel(**c.model_dump()))
 
     try:
-        redis.setex(cache_key, 86400, json.dumps([m.model_dump() for m in result]))
+        # Cache with async Redis for non-blocking I/O
+        await redis.setex(
+            cache_key, 
+            86400,  # 24 hour TTL
+            json.dumps([m.model_dump() for m in result], default=str)
+        )
+        logger.info(f"Cached MCP config for {cache_key}")
     except Exception as e:
-        logger.error(f"Redis set error: {e}")
+        logger.warning(f"Redis set error: {e}")
+        # Continue even if cache write fails
 
     return result

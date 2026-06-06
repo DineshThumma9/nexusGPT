@@ -28,6 +28,9 @@ Groq = ChatGroq
 g = Github(auth=Auth.Token(settings.github_token))
 
 
+_MCP_TOOLS_CACHE = {}
+_MCP_TOOLS_CACHE_TTL = 300  # 5 minutes
+
 async def get_mcp_tools(user_id):
     logger.info("starting getting mcp tools")
     try:
@@ -78,11 +81,22 @@ async def get_mcp_tools(user_id):
             if not client_config:
                 return []
 
-            await redis_client.setex(cache_key, 86400, json.dumps(client_config))
+            cached_config = json.dumps(client_config)
+            await redis_client.setex(cache_key, 86400, cached_config)
             end = time.time()
             logger.info(
                 f"Retrieved MCP configs from DB and cached in {end - start} seconds"
             )
+
+        # In-memory caching for the actual tools objects to avoid hitting MCP servers every request
+        global _MCP_TOOLS_CACHE
+        now = time.time()
+        if user_id in _MCP_TOOLS_CACHE:
+            cached_item = _MCP_TOOLS_CACHE[user_id]
+            # Check if config hasn't changed and cache is fresh
+            if cached_item["config_str"] == cached_config and (now - cached_item["timestamp"]) < _MCP_TOOLS_CACHE_TTL:
+                logger.info(f"Retrieved MCP tools from memory cache for user {user_id}")
+                return cached_item["tools"]
 
         client = MultiServerMCPClient(client_config)
         logger.info(f"Client config keys: {list(client_config.keys())}")
@@ -111,6 +125,13 @@ async def get_mcp_tools(user_id):
         logger.info(
             f"Loaded {len(tools)} MCP tools from {len(server_names)} servers in {end - start:.2f} seconds"
         )
+        
+        _MCP_TOOLS_CACHE[user_id] = {
+            "config_str": cached_config,
+            "tools": tools,
+            "timestamp": now
+        }
+        
         return tools
     except Exception as e:
         logger.error(f"Error loading MCP tools: {e}")

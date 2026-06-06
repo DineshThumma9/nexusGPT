@@ -31,7 +31,7 @@ class User(SQLModel, table=True):
 
 class Session(SQLModel, table=True):
     __tablename__ = "sessions"
-    session_id: UUID = Field(default_factory=uuid4, primary_key=True)
+    session_id: UUID = Field(default_factory=uuid4, primary_key=True,)
     user_id: UUID = Field(foreign_key="users.userid", ondelete="CASCADE", index=True)
     kb_id: Optional[UUID] = Field(
         default=None,

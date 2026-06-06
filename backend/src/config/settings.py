@@ -18,15 +18,11 @@ class Settings(BaseSettings):
     vector_dim: int = 768
     database_url: str
 
-    
-    
-    
-
-
     @field_validator("database_url", mode="before")
     @classmethod
     def normalize_db_url(cls, v: str) -> str:
         return v.replace("postgres://", "postgresql://", 1)
+
     neo4j_url: str
     neo4j_user: str
     neo4j_password: str
@@ -63,9 +59,12 @@ class Settings(BaseSettings):
     token_limit: int = 6000
     keep_message_limit: int = 8
 
-    db_pool_size: int = 5
-    db_max_overflow: int = 5
-    db_pool_timeout: int = 5
+    # Supabase uses PgBouncer in transaction mode (port 6543) which multiplexes
+    # client connections server-side. Keep SQLAlchemy's pool small — the pooler
+    # does the heavy lifting. Large SQLAlchemy pools just add lock contention.
+    db_pool_size: int = 10  # Connections to keep in pool
+    db_max_overflow: int = 5  # Extra connections when pool exhausted
+    db_pool_timeout: int = 10  # Wait max 10s for available connection
     db_pool_recycle: int = 300
     db_checkpointer_pool_size: int = 5
 
