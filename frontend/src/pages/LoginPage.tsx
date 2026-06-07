@@ -25,13 +25,13 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const navigate = useNavigate();
   const { setUsername } = useInitStore();
 
   useEffect(() => {
-    clearAllFields();
-  }, [clearAllFields]);
+    logout();
+  }, [logout]);
 
   const onSubmit = async () => {
     const values = {

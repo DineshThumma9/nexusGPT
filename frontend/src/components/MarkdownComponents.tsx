@@ -33,6 +33,7 @@ interface CodeComponentProps {
 }
 
 const shikiAdapter = createShikiAdapter<HighlighterGeneric<any, any>>({
+  theme: { light: "github-light", dark: "github-dark" },
   async load() {
     const { createHighlighter } = await import("shiki");
     return createHighlighter({

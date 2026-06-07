@@ -68,9 +68,6 @@ export const useAuth = () => {
     clearAllFields();
     clearInit();
     sessionStore.getState().clearAllSessions();
-    useSessionStore.getState().setKbId("");
-    useSessionStore.getState().setContext("vanilla");
-    useSessionStore.getState().setSending(false);
     logout();
   };
 

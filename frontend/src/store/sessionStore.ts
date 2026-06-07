@@ -198,9 +198,24 @@ const useSessionStore = create<SessionState>()(
 
       clearAllSessions: () =>
         set({
-          messages: [],
-          sessions: [],
           current_session: null,
+          sessions: [],
+          title: "",
+          messages: [],
+          files: [],
+          isLoading: false,
+          isStreaming: false,
+          shouldStream: false,
+          sending: false,
+          isWaitingForIndexing: false,
+          indexingStatus: "",
+          indexingDetail: "",
+          pendingMessage: null,
+          context: "vanilla",
+          kb_id: null,
+          sessionNextCursor: null,
+          sessionHasMore: true,
+          isFetchingMore: false,
         }),
 
       addSession: (session) =>

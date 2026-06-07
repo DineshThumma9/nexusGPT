@@ -27,7 +27,7 @@ def _init_db():
     global engine, async_engine, SessionLocal, AsyncSessionLocal, _connection_failed
 
     if engine is not None:
-        return  # Already initialized
+        return 
 
     if _connection_failed:
         raise RuntimeError("Database connection was already attempted and failed")
@@ -105,8 +105,6 @@ async def create_all_tables():
 
 async def init_checkpointer():
     global _pool, _checkpointer
-    # psycopg_pool uses raw psycopg3 DSN — plain postgresql:// is correct here
-    # (postgresql+psycopg:// is SQLAlchemy-only and will break psycopg_pool)
     _pool = AsyncConnectionPool(
         conninfo=settings.database_url,
         max_size=settings.db_checkpointer_pool_size,

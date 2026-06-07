@@ -34,13 +34,13 @@ const SignUpPage = () => {
   const confirmPassword = useFieldForm("confirmPassword"); // Fixed: consistent naming
   const email = useFieldForm("email");
 
-  const { register } = useAuth();
+  const { register, logout } = useAuth();
   const navigate = useNavigate();
   const { setUsername, setEmail } = useInitStore();
 
   useEffect(() => {
-    clearAllFields();
-  }, [clearAllFields]);
+    logout();
+  }, [logout]);
 
   const onSubmit = async () => {
     const values = {

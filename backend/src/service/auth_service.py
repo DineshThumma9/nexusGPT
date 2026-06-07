@@ -13,11 +13,68 @@ from sqlmodel import select
 
 from src.config.settings import settings
 from src.db.dbs import get_db
-from src.models.models import APIKEYS, RefreshToken, User
+from src.models.models import APIKEYS, User
 from src.models.schema import Token
+from src.db.redis_client import aredis
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+
+
+_USER_CACHE_TTL = 300
+
+
+async def _get_user_by_email(email:str,db:AsyncSession) -> User | None:
+
+    cache_key = f"user:email:{email}"
+
+    try:
+        cached = await aredis.get(cache_key)
+        if cached:
+            return User.model_validate_json(cached)
+    except Exception:
+        pass
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalars().first()
+    if user:
+        try:
+            await aredis.setex(
+                cache_key,
+                _USER_CACHE_TTL,
+                user.model_dump_json(),
+            )
+        except Exception:
+            pass
+    return user
+
+
+
+async def _get_user_by_username(username:str,db:AsyncSession) -> User | None:
+
+    cache_key = f"user:username:{username}"
+
+    try:
+        cached = await aredis.get(cache_key)
+        if cached:
+            return User.model_validate_json(cached)
+    except Exception:
+        pass
+
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalars().first()
+    if user:
+        try:
+            await aredis.setex(
+                cache_key,
+                _USER_CACHE_TTL,
+                user.model_dump_json(),
+            )
+        except Exception:
+            pass
+    return user
 
 
 async def get_current_user(
@@ -41,8 +98,21 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalars().first()
+
+    jti = payload.get("jti")
+    if jti:
+        try:
+            revoked = await aredis.get(f"revoked:{jti}")
+            if revoked:
+                raise credentials_exception
+        except HTTPException:
+            pass
+        except Exception:
+            pass
+    
+
+
+    user = await _get_user_by_email(email,db)
     if user is None:
         raise credentials_exception
     return user
@@ -50,6 +120,7 @@ async def get_current_user(
 
 async def create_tokens(data: dict, db: AsyncSession):
     now = datetime.datetime.utcnow()
+    email = data.get("sub")
 
     access_payload = data.copy()
     access_payload["exp"] = now + datetime.timedelta(
@@ -76,22 +147,20 @@ async def create_tokens(data: dict, db: AsyncSession):
             content={"detail": "Token generation failed"}, status_code=500
         )
 
-    email = data.get("sub")
-    db_token = RefreshToken(
-        email=email,
-        token=refresh_token,
-        expiry_date=now + datetime.timedelta(days=settings.refresh_token_expiry_days),
-    )
-
     try:
-        db.add(db_token)
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        logger.exception(f"Failed to store refresh token in DB {e} {e.__class__}")
-        return JSONResponse(content={"detail": "Database error"}, status_code=500)
+        await aredis.setex(
+            f"refresh:{refresh_token}",
+            int(datetime.timedelta(days=settings.refresh_token_expiry_days).total_seconds()),
+            email,
+            
+        )
+    except Exception:
+        logger.exception("Redis setex failed")
+        return JSONResponse(content={"detail": "Token generation failed"}, status_code=500)
+    
 
     tokens = Token(access=access_token, refresh=refresh_token)
+
     return JSONResponse(content=tokens.model_dump(), status_code=200)
 
 

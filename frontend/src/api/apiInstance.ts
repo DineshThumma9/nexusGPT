@@ -15,6 +15,7 @@ const handleAuthError = () => {
   useAuthStore.getState().clearAuth();
   useSessionStore.getState().clearAllSessions();
   useValidationStore.getState().clearAllFields();
+  useInitStore.getState().clearInit();
 
   window.location.href = "/login";
 };
