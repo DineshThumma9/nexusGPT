@@ -5,6 +5,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
@@ -15,7 +16,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from sqlmodel import SQLModel
 
 from src.config.settings import Settings
-from src.models import models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -24,7 +24,6 @@ config = context.config
 # psycopg v3 (the `psycopg` package) is the async PostgreSQL driver — it speaks
 # libpq natively so Neon's sslmode=require & channel_binding=require work as-is.
 # No URL mangling needed unlike asyncpg which has its own incompatible SSL API.
-from sqlalchemy.engine.url import make_url
 
 settings = Settings()
 

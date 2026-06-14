@@ -1,25 +1,7 @@
 // GitQuery.tsx
-import { Field, HStack, Input, InputGroup, VStack } from "@chakra-ui/react";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 import SelectOptions from "./Select.tsx";
-
-const inputStyles = {
-  borderRadius: "xl",
-  border: "1px solid",
-  borderColor: "border.default",
-  bg: "glass.bg",
-  color: "fg.default",
-  _placeholder: { color: "fg.muted" },
-  _hover: {
-    borderColor: "brand.500",
-    bg: "bg.subtle",
-  },
-  _focus: {
-    borderColor: "brand.500",
-    boxShadow: "0 0 0 1px token(colors.brand.500)",
-    bg: "bg.subtle",
-  },
-  transition: "all 0.2s ease",
-};
 
 interface Props {
   owner: string;
@@ -36,9 +18,12 @@ interface Props {
   setCommit: (val: string) => void;
   setDirInput: (val: string) => void;
   setFileExtInput: (val: string) => void;
-  setDirOption: (val: string[]) => void; // Fixed: should accept string[]
-  setFileExtOption: (val: string[]) => void; // Fixed: should accept string[]
+  setDirOption: (val: string[]) => void;
+  setFileExtOption: (val: string[]) => void;
 }
+
+const inputClassName =
+  "rounded-xl border border-border bg-background/50 text-foreground placeholder:text-muted-foreground hover:border-primary hover:bg-muted focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary focus-visible:bg-muted transition-all duration-200";
 
 const GitQuery = ({
   owner,
@@ -59,110 +44,100 @@ const GitQuery = ({
   setFileExtOption,
 }: Props) => {
   return (
-    <VStack gap={6} align="stretch">
-      <InputGroup
-        startAddon="https://github.com/"
-        endAddon=".git"
-        css={{
-          "& > div": {
-            bg: "bg.muted",
-            border: "1px solid",
-            borderColor: "border.subtle",
-            borderRadius: "xl",
-            color: "fg.subtle",
-          },
-        }}
-      >
+    <div className="flex flex-col gap-6 w-full">
+      <div className="flex items-center bg-muted border border-border rounded-xl text-muted-foreground overflow-hidden">
+        <div className="px-3 py-2 bg-muted border-r border-border text-sm whitespace-nowrap">
+          https://github.com/
+        </div>
         <Input
           placeholder="owner/repository"
-          value={`${owner}/${repo}`}
+          value={owner && repo ? `${owner}/${repo}` : ""}
           readOnly
-          {...inputStyles}
+          className="border-none rounded-none focus-visible:ring-0 bg-transparent flex-1 shadow-none h-full"
         />
-      </InputGroup>
+        <div className="px-3 py-2 bg-muted border-l border-border text-sm whitespace-nowrap">
+          .git
+        </div>
+      </div>
 
-      <HStack gap={4}>
-        <Field.Root flex={1}>
-          <Field.Label color="white" fontSize="sm" fontWeight="medium">
-            Owner *
-          </Field.Label>
+      <div className="flex gap-4">
+        <div className="flex flex-col flex-1 gap-2">
+          <Label className="text-foreground text-sm font-medium">Owner *</Label>
           <Input
             placeholder="github-username"
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
-            {...inputStyles}
+            className={inputClassName}
           />
-        </Field.Root>
-        <Field.Root flex={1}>
-          <Field.Label color="fg.default" fontSize="sm" fontWeight="medium">
+        </div>
+        <div className="flex flex-col flex-1 gap-2">
+          <Label className="text-foreground text-sm font-medium">
             Repository *
-          </Field.Label>
+          </Label>
           <Input
             placeholder="repo-name"
             value={repo}
             onChange={(e) => setRepo(e.target.value)}
-            {...inputStyles}
+            className={inputClassName}
           />
-        </Field.Root>
-      </HStack>
+        </div>
+      </div>
 
-      <HStack gap={4}>
-        <Field.Root flex={1}>
-          <Field.Label color="fg.default" fontSize="sm" fontWeight="medium">
-            Branch
-          </Field.Label>
+      <div className="flex gap-4">
+        <div className="flex flex-col flex-1 gap-2">
+          <Label className="text-foreground text-sm font-medium">Branch</Label>
           <Input
             placeholder="main"
             value={branch}
             onChange={(e) => setBranch(e.target.value)}
-            {...inputStyles}
+            className={inputClassName}
           />
-        </Field.Root>
-        <Field.Root flex={1}>
-          <Field.Label color="fg.default" fontSize="sm" fontWeight="medium">
+        </div>
+        <div className="flex flex-col flex-1 gap-2">
+          <Label className="text-foreground text-sm font-medium">
             Commit (optional)
-          </Field.Label>
+          </Label>
           <Input
             placeholder="commit-hash"
             value={commit}
             onChange={(e) => setCommit(e.target.value)}
-            {...inputStyles}
+            className={inputClassName}
           />
-        </Field.Root>
-      </HStack>
+        </div>
+      </div>
 
-      <VStack gap={4} align="stretch">
-        <HStack gap={4} align="flex-end">
-          <Field.Root flex={1}>
-            <Field.Label color="white" fontSize="sm" fontWeight="medium">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-end gap-4">
+          <div className="flex flex-col flex-1 gap-2">
+            <Label className="text-foreground text-sm font-medium">
               Directory Filters (comma-separated)
-            </Field.Label>
+            </Label>
             <Input
               placeholder="src/, docs/, tests/"
               value={dirInput}
               onChange={(e) => setDirInput(e.target.value)}
-              {...inputStyles}
+              className={inputClassName}
             />
-          </Field.Root>
+          </div>
           <SelectOptions value={dirOption} setValue={setDirOption} />
-        </HStack>
+        </div>
 
-        <HStack gap={4} align="flex-end">
-          <Field.Root flex={1}>
-            <Field.Label color="white" fontSize="sm" fontWeight="medium">
+        <div className="flex items-end gap-4">
+          <div className="flex flex-col flex-1 gap-2">
+            <Label className="text-foreground text-sm font-medium">
               File Extension Filters (comma-separated)
-            </Field.Label>
+            </Label>
             <Input
               placeholder=".ts, .tsx, .js, .jsx"
               value={fileExtInput}
               onChange={(e) => setFileExtInput(e.target.value)}
-              {...inputStyles}
+              className={inputClassName}
             />
-          </Field.Root>
+          </div>
           <SelectOptions value={fileExtOption} setValue={setFileExtOption} />
-        </HStack>
-      </VStack>
-    </VStack>
+        </div>
+      </div>
+    </div>
   );
 };
 

@@ -35,3 +35,11 @@ export const getApiModels = async (): Promise<Record<string, any>> => {
   const response = await setupAPI.get("/api-models");
   return response.data;
 };
+
+export const getMcpToolCount = async (): Promise<{
+  total_available: number;
+  active: number;
+}> => {
+  const response = await setupAPI.get("/mcp-tools/count");
+  return response.data;
+};

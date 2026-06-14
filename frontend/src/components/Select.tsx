@@ -1,107 +1,56 @@
 "use client";
 
-import { createListCollection, Select } from "@chakra-ui/react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Label } from "./ui/label";
 
 interface Props {
   value: string[];
   setValue: (value: string[]) => void;
 }
 
+const include_exclude = [
+  { label: "Include", value: "Include" },
+  { label: "Exclude", value: "Exclude" },
+];
+
 const SelectOptions = ({ value, setValue }: Props) => {
+  // Shadcn select uses string for single select, but value is string[]. We take the first element if it exists.
+  const currentValue = value.length > 0 ? value[0] : "";
+
   return (
-    <Select.Root
-      collection={include_exclude}
-      value={value}
-      onValueChange={(details) => {
-        setValue(details.value); // 👈 use item.value
-      }}
-      width="200px"
-    >
-      <Select.HiddenSelect />
-      <Select.Label color={"fg"} fontSize="sm" fontWeight="medium">
+    <div className="flex flex-col gap-2 w-[200px]">
+      <Label className="text-sm font-medium text-foreground">
         Include/Exclude
-      </Select.Label>
-      <Select.Control>
-        <Select.Trigger
-          bg={"bg.panel"}
-          border="1px solid"
-          borderColor={"border.subtle"}
-          borderRadius="12px"
-          color={"fg"}
-          px={4}
-          py={3}
-          fontSize="sm"
-          fontWeight="medium"
-          _hover={{
-            borderColor: "border",
-            bg: "bg.subtle",
-            transform: "scale(1.02)",
-          }}
-          _focus={{
-            borderColor: "border.emphasized",
-            boxShadow: `0 0 0 1px ${"border.emphasized"}`,
-          }}
-          _active={{
-            transform: "scale(0.98)",
-          }}
-          transition="all 0.2s ease"
-        >
-          <Select.ValueText
-            placeholder="Select option"
-            color={"fg"}
-            _placeholder={{ color: "fg.muted" }}
-          />
-        </Select.Trigger>
-        <Select.IndicatorGroup>
-          <Select.Indicator color={"fg"} />
-        </Select.IndicatorGroup>
-      </Select.Control>
-      <Select.Positioner>
-        <Select.Content
-          bg={"bg.panel"}
-          backdropFilter="blur(10px)"
-          border="1px solid"
-          borderColor={"border.subtle"}
-          borderRadius="12px"
-          boxShadow={`0 10px 40px ${"lg"}`}
-          py={2}
-          minW="200px"
-        >
-          {include_exclude.items.map((option) => (
-            <Select.Item
+      </Label>
+      <Select
+        value={currentValue}
+        onValueChange={(val) => {
+          setValue([val]);
+        }}
+      >
+        <SelectTrigger className="w-full bg-background border-border rounded-xl px-4 py-3 h-auto hover:bg-muted focus:ring-1 focus:ring-ring transition-all">
+          <SelectValue placeholder="Select option" />
+        </SelectTrigger>
+        <SelectContent className="bg-background/80 backdrop-blur-md border-border rounded-xl">
+          {include_exclude.map((option) => (
+            <SelectItem
               key={option.value}
-              item={option}
-              color={"fg"}
-              px={3}
-              py={2}
-              borderRadius="8px"
-              mx={1}
-              fontWeight="medium"
-              _hover={{
-                bg: "bg.subtle",
-                transform: "scale(1.02)",
-              }}
-              _selected={{
-                bg: "bg.muted",
-                fontWeight: "bold",
-              }}
-              transition="all 0.2s ease"
+              value={option.value}
+              className="rounded-lg cursor-pointer transition-colors"
             >
               {option.label}
-              <Select.ItemIndicator color={"colorPalette.500"} />
-            </Select.Item>
+            </SelectItem>
           ))}
-        </Select.Content>
-      </Select.Positioner>
-    </Select.Root>
+        </SelectContent>
+      </Select>
+    </div>
   );
 };
-
-const include_exclude = createListCollection({
-  items: [
-    { label: "Include", value: "Include" },
-    { label: "Exclude", value: "Exclude" },
-  ],
-});
 
 export default SelectOptions;

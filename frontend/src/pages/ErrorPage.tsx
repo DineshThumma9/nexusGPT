@@ -1,4 +1,3 @@
-import { Box, Heading, Text } from "@chakra-ui/react";
 import { isRouteErrorResponse, useRouteError } from "react-router-dom";
 
 const ErrorPage = () => {
@@ -6,14 +5,14 @@ const ErrorPage = () => {
 
   return (
     <>
-      <Box padding={5}>
-        <Heading>Oops</Heading>
-        <Text>
+      <div className="p-5">
+        <h1 className="text-2xl font-bold mb-2">Oops</h1>
+        <p className="text-foreground">
           {isRouteErrorResponse(error)
-            ? "Page does'nt exist"
-            : "An Unexcepted error occure"}
-        </Text>
-      </Box>
+            ? "Page doesn't exist"
+            : "An unexpected error occurred"}
+        </p>
+      </div>
     </>
   );
 };

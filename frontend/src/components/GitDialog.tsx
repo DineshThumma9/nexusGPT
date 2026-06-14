@@ -1,37 +1,31 @@
 "use client";
 
-import {
-  Button,
-  Dialog,
-  Field,
-  HStack,
-  Input,
-  InputGroup,
-  Portal,
-  useSlotRecipe,
-  VStack,
-  Flex,
-} from "@chakra-ui/react";
 import { useState } from "react";
 import { v4 } from "uuid";
 import useSessionStore from "../store/sessionStore.ts";
 import { z } from "zod";
 import { gitFilesUpload } from "../api/rag-api.ts";
 
-import { toaster } from "./ui/toaster.tsx";
+import { toast } from "sonner";
 import { RiArrowRightLine } from "react-icons/ri";
 import GitExplorer from "./GitExplorer.tsx";
 import { ragAPI } from "../api/apiInstance.ts";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "./ui/dialog.tsx";
+import { Button } from "./ui/button.tsx";
+import { Input } from "./ui/input.tsx";
+import { Label } from "./ui/label.tsx";
 
 interface Props {
   onCancel: () => void;
   onConfirm: () => void;
 }
-
-const dialogHeader = {
-  p: 6,
-  pb: 4,
-};
 
 export const GitRequestSchema = z.object({
   owner: z.string(),
@@ -124,18 +118,6 @@ const parseGitHubUrl = (url: string) => {
 };
 
 const GitDialog = ({ onConfirm, onCancel }: Props) => {
-  const dialogBody = {
-    p: 6,
-    pt: 2,
-    color: "fg",
-  };
-
-  const dialogFooter = {
-    p: 6,
-    pt: 4,
-    gap: 3,
-  };
-
   const [owner, setOwner] = useState("");
   const [repo, setRepo] = useState("");
   const [branch, setBranch] = useState("");
@@ -148,36 +130,12 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
 
   const { current_session } = useSessionStore();
-  const recipe = useSlotRecipe({ key: "dialogHelper" });
-  const styles = recipe();
-
-  const inputStyles = {
-    borderRadius: "xl",
-    border: "1px solid",
-    borderColor: "border.default",
-    bg: "glass.bg",
-    color: "fg",
-    _placeholder: { color: "fg.muted" },
-    _hover: {
-      borderColor: "brand.500",
-      bg: "bg.subtle",
-    },
-    _focus: {
-      borderColor: "brand.500",
-      boxShadow: "0 0 0 1px token(colors.brand.500)",
-      bg: "bg.subtle",
-    },
-    transition: "all 0.2s ease",
-  };
 
   const handleContinue = async () => {
     if (!owner.trim() || !repo.trim()) {
-      toaster.create({
-        title: "Missing fields",
-        description: "Please provide both owner and repository name.",
-        type: "error",
-        duration: 3000,
-      });
+      toast.error(
+        "Missing fields: Please provide both owner and repository name.",
+      );
       return;
     }
 
@@ -198,11 +156,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
       });
 
       if (!res.data) {
-        toaster.create({
-          type: "error",
-          closable: true,
-          description: "Some Error has occurred while continuing",
-        });
+        toast.error("Some Error has occurred while continuing");
         throw Error("Some error has occurred");
       }
 
@@ -215,10 +169,9 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
           parsedFiles.push(parseResult.data);
         } else {
           console.error("Failed to parse file:", file, parseResult.error);
-          toaster.create({
-            type: "error",
-            description: `Some error has occurred parsing file: ${parseResult.error.message}`,
-          });
+          toast.error(
+            `Some error has occurred parsing file: ${parseResult.error.message}`,
+          );
         }
       }
 
@@ -226,11 +179,7 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
       setExplorer(true);
     } catch (error) {
       console.error("Error fetching tree:", error);
-      toaster.create({
-        type: "error",
-        closable: true,
-        description: "Failed to fetch repository tree",
-      });
+      toast.error("Failed to fetch repository tree");
     } finally {
       setLoading(false);
     }
@@ -238,22 +187,16 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
 
   const handleGitSelected = async () => {
     if (!owner.trim() || !repo.trim()) {
-      toaster.create({
-        title: "Missing fields",
-        description: "Please provide both owner and repository name.",
-        type: "error",
-        duration: 3000,
-      });
+      toast.error(
+        "Missing fields: Please provide both owner and repository name.",
+      );
       return;
     }
 
     if (explorer && selectedFiles.length === 0) {
-      toaster.create({
-        title: "No files selected",
-        description: "Please select at least one file to continue.",
-        type: "error",
-        duration: 3000,
-      });
+      toast.error(
+        "No files selected: Please select at least one file to continue.",
+      );
       return;
     }
 
@@ -303,281 +246,175 @@ const GitDialog = ({ onConfirm, onCancel }: Props) => {
           // Revert global state if it fails
           useSessionStore.getState().setIsWaitingForIndexing(false);
 
-          toaster.create({
-            title: "Connection Failed",
-            description:
-              "Something went wrong while connecting to the repository.",
-            type: "error",
-            duration: 5000,
-          });
+          toast.error(
+            "Connection Failed: Something went wrong while connecting to the repository.",
+          );
         });
     } catch (error) {
       console.error("Validation error:", error);
       setLoading(false);
-      toaster.create({
-        title: "Invalid Input",
-        description: "Please check your filter inputs.",
-        type: "error",
-        duration: 3000,
-      });
+      toast.error("Invalid Input: Please check your filter inputs.");
     }
   };
 
   return (
-    <>
-      <Dialog.Root role="alertdialog" open={true}>
-        <Portal>
-          <Dialog.Backdrop
-            css={{
-              ...styles.backdrop,
-              backdropFilter: "blur(8px)",
-              bg: "md",
-            }}
-          />
-          <Dialog.Positioner>
-            <Dialog.Content
-              css={{
-                ...styles.content,
-                bg: "glass.bg",
-                backdropFilter: "blur(24px)",
-                border: "1px solid",
-                borderColor: "glass.border",
-                borderRadius: "3xl",
-                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              }}
-            >
-              <Dialog.Header {...dialogHeader}>
-                <Dialog.Title
-                  css={{
-                    ...styles.title,
-                    color: "fg",
-                    fontSize: "2xl",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Connect Git Repository
-                </Dialog.Title>
-              </Dialog.Header>
+    <Dialog open={true} onOpenChange={(isOpen) => !isOpen && onCancel()}>
+      <DialogContent className="bg-background/90 backdrop-blur-3xl border border-border/40 rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] w-full max-w-lg p-0 overflow-hidden">
+        <DialogHeader className="p-6 pb-4">
+          <DialogTitle className="text-foreground text-2xl font-bold">
+            Connect Git Repository
+          </DialogTitle>
+        </DialogHeader>
 
-              <Dialog.Body {...dialogBody}>
-                {!explorer ? (
-                  <VStack gap={6} align="stretch">
-                    {/* Repository URL Preview */}
-                    <InputGroup
-                      startAddon="https://github.com/"
-                      endAddon=".git"
-                      css={{
-                        "& > div": {
-                          bg: "bg.muted",
-                          border: "1px solid",
-                          borderColor: "border.subtle",
-                          borderRadius: "xl",
-                          color: "fg.subtle",
-                        },
-                      }}
-                    >
-                      <Input
-                        placeholder="owner/repository"
-                        value={`${owner}/${repo}`}
-                        readOnly
-                        {...inputStyles}
-                      />
-                    </InputGroup>
+        <div className="p-6 pt-2 text-foreground">
+          {!explorer ? (
+            <div className="flex flex-col gap-6">
+              {/* Repository URL Preview */}
+              <div className="flex items-center rounded-xl border border-border bg-muted text-muted-foreground overflow-hidden">
+                <div className="px-3 py-2 bg-muted/50 border-r border-border text-sm flex-shrink-0">
+                  https://github.com/
+                </div>
+                <Input
+                  placeholder="owner/repository"
+                  value={owner && repo ? `${owner}/${repo}` : ""}
+                  readOnly
+                  className="border-none shadow-none rounded-none focus-visible:ring-0 bg-transparent"
+                />
+                <div className="px-3 py-2 bg-muted/50 border-l border-border text-sm flex-shrink-0">
+                  .git
+                </div>
+              </div>
 
-                    {/* Owner and Repository */}
-                    <Flex
-                      direction={{ base: "column", md: "row" }}
-                      gap={4}
-                      w="full"
-                    >
-                      <Field.Root flex={1}>
-                        <Field.Label
-                          color="fg"
-                          fontSize="sm"
-                          fontWeight="medium"
-                        >
-                          Owner *
-                        </Field.Label>
-                        <Input
-                          placeholder="github-username"
-                          value={owner}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const parsed = parseGitHubUrl(val);
-                            if (parsed) {
-                              setOwner(parsed.owner);
-                              setRepo(parsed.repo);
-                              if (parsed.branch) setBranch(parsed.branch);
-                            } else {
-                              setOwner(val);
-                            }
-                          }}
-                          {...inputStyles}
-                        />
-                      </Field.Root>
-                      <Field.Root flex={1}>
-                        <Field.Label
-                          color="fg"
-                          fontSize="sm"
-                          fontWeight="medium"
-                        >
-                          Repository *
-                        </Field.Label>
-                        <Input
-                          placeholder="repo-name"
-                          value={repo}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const parsed = parseGitHubUrl(val);
-                            if (parsed) {
-                              setOwner(parsed.owner);
-                              setRepo(parsed.repo);
-                              if (parsed.branch) setBranch(parsed.branch);
-                            } else {
-                              setRepo(val);
-                            }
-                          }}
-                          {...inputStyles}
-                        />
-                      </Field.Root>
-                    </Flex>
-
-                    {/* Branch and Commit */}
-                    <Flex
-                      direction={{ base: "column", md: "row" }}
-                      gap={4}
-                      w="full"
-                    >
-                      <Field.Root flex={1}>
-                        <Field.Label
-                          color="white"
-                          fontSize="sm"
-                          fontWeight="medium"
-                        >
-                          Branch
-                        </Field.Label>
-                        <Input
-                          placeholder="main"
-                          value={branch}
-                          onChange={(e) => setBranch(e.target.value)}
-                          {...inputStyles}
-                        />
-                      </Field.Root>
-                      <Field.Root flex={1}>
-                        <Field.Label
-                          color="fg"
-                          fontSize="sm"
-                          fontWeight="medium"
-                        >
-                          Commit (optional)
-                        </Field.Label>
-                        <Input
-                          placeholder="commit-hash"
-                          value={commit}
-                          onChange={(e) => setCommit(e.target.value)}
-                          {...inputStyles}
-                        />
-                      </Field.Root>
-                    </Flex>
-
-                    {/* Private GitHub Token */}
-                    <Field.Root>
-                      <Field.Label color="fg" fontSize="sm" fontWeight="medium">
-                        Private GitHub Token (optional)
-                      </Field.Label>
-                      <Input
-                        type="password"
-                        placeholder="ghp_..."
-                        value={token}
-                        onChange={(e) => setToken(e.target.value)}
-                        {...inputStyles}
-                      />
-                    </Field.Root>
-                  </VStack>
-                ) : (
-                  <GitExplorer
-                    files={files}
-                    selectedFiles={selectedFiles}
-                    setSelectedFiles={setSelectedFiles}
+              {/* Owner and Repository */}
+              <div className="flex flex-col md:flex-row gap-4 w-full">
+                <div className="flex-1 space-y-2">
+                  <Label className="text-sm font-medium text-foreground">
+                    Owner *
+                  </Label>
+                  <Input
+                    placeholder="github-username"
+                    value={owner}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const parsed = parseGitHubUrl(val);
+                      if (parsed) {
+                        setOwner(parsed.owner);
+                        setRepo(parsed.repo);
+                        if (parsed.branch) setBranch(parsed.branch);
+                      } else {
+                        setOwner(val);
+                      }
+                    }}
                   />
-                )}
-              </Dialog.Body>
-
-              <Dialog.Footer
-                {...dialogFooter}
-                flexDirection={{ base: "column", sm: "row" }}
-                flexWrap="wrap"
-              >
-                <Dialog.ActionTrigger asChild>
-                  <Button
-                    w={{ base: "full", sm: "auto" }}
-                    variant="ghost"
-                    color={"fg"}
-                    borderRadius="xl"
-                    _hover={{
-                      bg: "bg.subtle",
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Label className="text-sm font-medium text-foreground">
+                    Repository *
+                  </Label>
+                  <Input
+                    placeholder="repo-name"
+                    value={repo}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const parsed = parseGitHubUrl(val);
+                      if (parsed) {
+                        setOwner(parsed.owner);
+                        setRepo(parsed.repo);
+                        if (parsed.branch) setBranch(parsed.branch);
+                      } else {
+                        setRepo(val);
+                      }
                     }}
-                    onClick={onCancel}
-                  >
-                    Cancel
-                  </Button>
-                </Dialog.ActionTrigger>
+                  />
+                </div>
+              </div>
 
-                <Button
-                  w={{ base: "full", sm: "auto" }}
-                  bg="brand.600"
-                  color="white"
-                  borderRadius="xl"
-                  _hover={{
-                    bg: "brand.700",
-                    transform: "translateY(-1px)",
-                  }}
-                  _active={{
-                    transform: "translateY(0)",
-                  }}
-                  onClick={handleGitSelected}
-                  disabled={
-                    loading ||
-                    !owner.trim() ||
-                    !repo.trim() ||
-                    (explorer && selectedFiles.length === 0)
-                  }
-                  loading={loading}
-                  loadingText="Connecting..."
-                  transition="all 0.2s ease"
-                >
-                  {explorer ? "Connect Repository" : "Add Files"}
-                </Button>
+              {/* Branch and Commit */}
+              <div className="flex flex-col md:flex-row gap-4 w-full">
+                <div className="flex-1 space-y-2">
+                  <Label className="text-sm font-medium text-foreground">
+                    Branch
+                  </Label>
+                  <Input
+                    placeholder="main"
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Label className="text-sm font-medium text-foreground">
+                    Commit (optional)
+                  </Label>
+                  <Input
+                    placeholder="commit-hash"
+                    value={commit}
+                    onChange={(e) => setCommit(e.target.value)}
+                  />
+                </div>
+              </div>
 
-                {!explorer && (
-                  <Button
-                    w={{ base: "full", sm: "auto" }}
-                    variant="outline"
-                    borderColor="brand.500"
-                    color="brand.600"
-                    borderRadius="xl"
-                    _hover={{
-                      bg: "brand.subtle",
-                      transform: "translateY(-1px)",
-                    }}
-                    _active={{
-                      transform: "translateY(0)",
-                    }}
-                    onClick={handleContinue}
-                    disabled={loading || !owner.trim() || !repo.trim()}
-                    loading={loading}
-                    loadingText="Loading..."
-                    transition="all 0.2s ease"
-                  >
-                    Continue <RiArrowRightLine />
-                  </Button>
-                )}
-              </Dialog.Footer>
-            </Dialog.Content>
-          </Dialog.Positioner>
-        </Portal>
-      </Dialog.Root>
-    </>
+              {/* Private GitHub Token */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">
+                  Private GitHub Token (optional)
+                </Label>
+                <Input
+                  type="password"
+                  placeholder="ghp_..."
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : (
+            <GitExplorer
+              files={files}
+              selectedFiles={selectedFiles}
+              setSelectedFiles={setSelectedFiles}
+            />
+          )}
+        </div>
+
+        <DialogFooter className="p-6 pt-4 flex flex-col sm:flex-row flex-wrap gap-3">
+          <Button
+            variant="ghost"
+            onClick={onCancel}
+            className="w-full sm:w-auto rounded-xl hover:bg-muted"
+          >
+            Cancel
+          </Button>
+
+          <Button
+            onClick={handleGitSelected}
+            disabled={
+              loading ||
+              !owner.trim() ||
+              !repo.trim() ||
+              (explorer && selectedFiles.length === 0)
+            }
+            className="w-full sm:w-auto bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 hover:-translate-y-px active:translate-y-0 transition-all duration-200"
+          >
+            {loading
+              ? "Connecting..."
+              : explorer
+                ? "Connect Repository"
+                : "Add Files"}
+          </Button>
+
+          {!explorer && (
+            <Button
+              variant="outline"
+              onClick={handleContinue}
+              disabled={loading || !owner.trim() || !repo.trim()}
+              className="w-full sm:w-auto border-primary/50 text-primary rounded-xl hover:bg-primary/10 hover:-translate-y-px active:translate-y-0 transition-all duration-200"
+            >
+              {loading ? "Loading..." : "Continue"}{" "}
+              <RiArrowRightLine className="ml-2" />
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

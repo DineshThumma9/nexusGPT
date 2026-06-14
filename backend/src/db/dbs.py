@@ -9,7 +9,6 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
 from src.config.settings import settings
-from src.models.models import Session
 
 _pool: AsyncConnectionPool | None = None
 _checkpointer: AsyncPostgresSaver | None = None
@@ -27,7 +26,7 @@ def _init_db():
     global engine, async_engine, SessionLocal, AsyncSessionLocal, _connection_failed
 
     if engine is not None:
-        return 
+        return
 
     if _connection_failed:
         raise RuntimeError("Database connection was already attempted and failed")

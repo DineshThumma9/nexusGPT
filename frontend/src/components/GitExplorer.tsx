@@ -1,17 +1,19 @@
 "use client";
 
-import {
-  Box,
-  Breadcrumb,
-  Button,
-  Checkbox,
-  HStack,
-  Input,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
 import { useMemo, useState } from "react";
-import { LuChevronRight, LuFile, LuFolder, LuSearch } from "react-icons/lu";
+import { LuFile, LuSearch } from "react-icons/lu";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Checkbox } from "./ui/checkbox";
+import { cn } from "@/lib/utils";
+import {
+  FileTree,
+  FileTreeFolder,
+  FileTreeFile,
+  FileTreeIcon,
+  FileTreeName,
+} from "./ai/file-tree";
+
 export interface GitTreeNode {
   name: string;
   path: string;
@@ -32,271 +34,223 @@ const GitExplorer = ({
   selectedFiles,
   setSelectedFiles,
 }: GitExplorerProps) => {
-  const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const flatFileMap = useMemo(() => {
-    const map = new Map<string, GitTreeNode>();
-
-    const traverse = (nodes: GitTreeNode[]) => {
-      nodes.forEach((node) => {
-        map.set(node.path, node);
-        if (node.children) {
-          traverse(node.children);
-        }
-      });
-    };
-
-    traverse(files);
-    return map;
-  }, [files]);
-
-  const currentNodes = useMemo(() => {
-    if (currentPath.length === 0) {
-      return files;
-    }
-
-    const currentPathString = currentPath.join("/");
-    const currentNode = flatFileMap.get(currentPathString);
-    return currentNode?.children || [];
-  }, [currentPath, files, flatFileMap]);
-
-  const filteredNodes = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return currentNodes;
-    }
-
-    return currentNodes.filter((node) =>
-      node.name.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [currentNodes, searchQuery]);
-
-  const handleNodeClick = (node: GitTreeNode) => {
-    if (node.type === "tree") {
-      const newPath = node.path.split("/").filter(Boolean);
-      setCurrentPath(newPath);
+  const handleSelect = (path: string) => {
+    if (selectedFiles.includes(path)) {
+      setSelectedFiles(selectedFiles.filter((p) => p !== path));
     } else {
-      const isSelected = selectedFiles.includes(node.path);
-      if (isSelected) {
-        setSelectedFiles(selectedFiles.filter((path) => path !== node.path));
-      } else {
-        setSelectedFiles([...selectedFiles, node.path]);
-      }
-    }
-  };
-
-  const handleBreadcrumbClick = (index: number) => {
-    if (index === -1) {
-      setCurrentPath([]);
-    } else {
-      setCurrentPath(currentPath.slice(0, index + 1));
+      setSelectedFiles([...selectedFiles, path]);
     }
   };
 
   const handleSelectAll = () => {
-    const visibleFiles = filteredNodes.filter((node) => node.type === "blob");
-    const visibleFilePaths = visibleFiles.map((file) => file.path);
+    const visiblePaths: string[] = [];
+    const traverse = (nodes: GitTreeNode[]) => {
+      nodes.forEach((node) => {
+        if (node.type === "blob") {
+          visiblePaths.push(node.path);
+        } else if (node.children) {
+          traverse(node.children);
+        }
+      });
+    };
+    traverse(filteredFiles);
 
-    const allSelected = visibleFilePaths.every((path) =>
-      selectedFiles.includes(path),
-    );
+    const allSelected =
+      visiblePaths.length > 0 &&
+      visiblePaths.every((path) => selectedFiles.includes(path));
 
     if (allSelected) {
       setSelectedFiles(
-        selectedFiles.filter((path) => !visibleFilePaths.includes(path)),
+        selectedFiles.filter((path) => !visiblePaths.includes(path)),
       );
     } else {
-      const newSelected = [...new Set([...selectedFiles, ...visibleFilePaths])];
+      const newSelected = [...new Set([...selectedFiles, ...visiblePaths])];
       setSelectedFiles(newSelected);
     }
   };
 
-  const breadcrumbItems = useMemo(() => {
-    return currentPath.map((segment, index) => ({
-      name: segment,
-      index,
-    }));
-  }, [currentPath]);
+  const filteredFiles = useMemo(() => {
+    if (!searchQuery.trim()) return files;
 
-  const visibleFiles = filteredNodes.filter((node) => node.type === "blob");
+    const lowerQuery = searchQuery.toLowerCase();
+
+    const filterTree = (nodes: GitTreeNode[]): GitTreeNode[] => {
+      return nodes
+        .map((node) => {
+          if (node.type === "blob") {
+            if (node.name.toLowerCase().includes(lowerQuery)) {
+              return node;
+            }
+            return null;
+          } else {
+            const filteredChildren = node.children
+              ? filterTree(node.children)
+              : [];
+            if (
+              filteredChildren.length > 0 ||
+              node.name.toLowerCase().includes(lowerQuery)
+            ) {
+              return { ...node, children: filteredChildren };
+            }
+            return null;
+          }
+        })
+        .filter(Boolean) as GitTreeNode[];
+    };
+
+    return filterTree(files);
+  }, [files, searchQuery]);
+
+  const expandedPaths = useMemo(() => {
+    if (!searchQuery.trim()) return undefined;
+
+    const paths = new Set<string>();
+    const collectPaths = (nodes: GitTreeNode[]) => {
+      nodes.forEach((node) => {
+        if (node.type === "tree") {
+          paths.add(node.path);
+          if (node.children) collectPaths(node.children);
+        }
+      });
+    };
+    collectPaths(filteredFiles);
+    return paths;
+  }, [filteredFiles, searchQuery]);
+
+  const renderTree = (nodes: GitTreeNode[]) => {
+    return nodes.map((node) => {
+      if (node.type === "tree") {
+        return (
+          <FileTreeFolder key={node.path} path={node.path} name={node.name}>
+            {node.children && renderTree(node.children)}
+          </FileTreeFolder>
+        );
+      } else {
+        const isSelected = selectedFiles.includes(node.path);
+        return (
+          <FileTreeFile
+            key={node.path}
+            path={node.path}
+            name={node.name}
+            className={cn(
+              "justify-between group pr-1",
+              isSelected && "bg-muted",
+            )}
+          >
+            <div className="flex items-center gap-1 overflow-hidden">
+              <span className="size-4" />
+              <FileTreeIcon>
+                <LuFile className="size-4 text-muted-foreground" />
+              </FileTreeIcon>
+              <FileTreeName>{node.name}</FileTreeName>
+              {node.size && (
+                <span className="text-muted-foreground text-xs ml-2 whitespace-nowrap">
+                  {(node.size / 1024).toFixed(1)} KB
+                </span>
+              )}
+            </div>
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => handleSelect(node.path)}
+              className={cn(
+                "opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0",
+                isSelected && "opacity-100",
+              )}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </FileTreeFile>
+        );
+      }
+    });
+  };
+
+  const visiblePaths: string[] = useMemo(() => {
+    const paths: string[] = [];
+    const traverse = (nodes: GitTreeNode[]) => {
+      nodes.forEach((node) => {
+        if (node.type === "blob") paths.push(node.path);
+        if (node.children) traverse(node.children);
+      });
+    };
+    traverse(filteredFiles);
+    return paths;
+  }, [filteredFiles]);
+
   const allVisibleSelected =
-    visibleFiles.length > 0 &&
-    visibleFiles.every((file) => selectedFiles.includes(file.path));
+    visiblePaths.length > 0 &&
+    visiblePaths.every((path) => selectedFiles.includes(path));
 
   return (
-    <VStack gap={4} align="stretch" maxH="500px">
-      {/* Search and Controls */}
-      <HStack gap={3}>
-        <Box position="relative" flex={1}>
-          <Box
-            position="absolute"
-            left="12px"
-            top="50%"
-            transform="translateY(-50%)"
-            zIndex={1}
-            color={"fg.subtle"}
-          >
+    <div className="flex flex-col gap-4 max-h-[600px]">
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-muted-foreground">
             <LuSearch />
-          </Box>
+          </div>
           <Input
             placeholder="Search files..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            pl="40px"
-            borderRadius="xl"
-            border="1px solid"
-            borderColor="border.subtle"
-            bg="glass.bg"
-            color="fg"
-            _placeholder={{ color: "fg.subtle" }}
-            _hover={{
-              borderColor: "brand.500",
-            }}
-            _focus={{
-              borderColor: "brand.500",
-              boxShadow: "0 0 0 1px token(colors.brand.500)",
-            }}
+            className="pl-10 rounded-xl bg-background/50 border-border"
           />
-        </Box>
+        </div>
 
-        {visibleFiles.length > 0 && (
+        {visiblePaths.length > 0 && (
           <Button
             size="sm"
             variant="ghost"
-            color={"fg"}
             onClick={handleSelectAll}
-            borderRadius="xl"
-            _hover={{ bg: "bg.subtle" }}
+            className="rounded-xl hover:bg-muted"
           >
             {allVisibleSelected ? "Deselect All" : "Select All"}
           </Button>
         )}
-      </HStack>
+      </div>
 
-      {/* Breadcrumb Navigation */}
-      <Breadcrumb.Root gap="8px" fontSize="sm">
-        <Breadcrumb.Item>
-          <Breadcrumb.Link
-            onClick={() => handleBreadcrumbClick(-1)}
-            color={"fg.subtle"}
-            _hover={{ color: "fg" }}
-            display="flex"
-            alignItems="center"
-            gap="4px"
-          >
-            Root
-          </Breadcrumb.Link>
-        </Breadcrumb.Item>
-        {breadcrumbItems.map(({ name, index }) => (
-          <Breadcrumb.Item key={index}>
-            <Box color={"fg.muted"}>
-              <LuChevronRight />
-            </Box>
-            <Breadcrumb.Link
-              onClick={() => handleBreadcrumbClick(index)}
-              color={"fg.subtle"}
-              _hover={{ color: "fg" }}
-              ml={2}
-            >
-              {name}
-            </Breadcrumb.Link>
-          </Breadcrumb.Item>
-        ))}
-      </Breadcrumb.Root>
-
-      {/* Selection Summary */}
       {selectedFiles.length > 0 && (
-        <Text
-          fontSize="sm"
-          color={"fg.subtle"}
-          bg={"bg.subtle"}
-          p={2}
-          borderRadius="lg"
-          border={`1px solid ${"border.subtle"}`}
-        >
+        <div className="text-sm text-muted-foreground bg-muted p-2 rounded-lg border border-border">
           {selectedFiles.length} file{selectedFiles.length !== 1 ? "s" : ""}{" "}
           selected
-        </Text>
+        </div>
       )}
 
-      {/* File Tree */}
-      <Box
-        flex={1}
-        overflow="auto"
-        border="1px solid"
-        borderColor="border.subtle"
-        borderRadius="2xl"
-        bg="glass.bg"
-        p={2}
-        maxH="300px"
-      >
-        {filteredNodes.length === 0 ? (
-          <HStack justify="center" align="center" h="100px">
-            <Text color={"fg.subtle"}>
+      <div className="flex-1 overflow-auto border border-border rounded-2xl bg-background/50 p-2 min-h-[300px]">
+        {filteredFiles.length === 0 ? (
+          <div className="flex justify-center items-center h-[100px]">
+            <span className="text-muted-foreground">
               {searchQuery ? "No files match your search" : "No files found"}
-            </Text>
-          </HStack>
+            </span>
+          </div>
         ) : (
-          <VStack align="stretch" gap={1}>
-            {filteredNodes.map((node) => (
-              <HStack
-                key={node.path}
-                p={2}
-                borderRadius="lg"
-                _hover={{ bg: "bg.subtle" }}
-                cursor="pointer"
-                onClick={() => handleNodeClick(node)}
-                justify="space-between"
-                w="full"
-                transition="background-color 0.2s"
-              >
-                <HStack gap={3} flex={1}>
-                  {node.type === "tree" ? (
-                    <>
-                      <Box color="brand.500">
-                        <LuFolder size={18} />
-                      </Box>
-                      <Text
-                        color="fg.default"
-                        fontSize="sm"
-                        fontWeight="medium"
-                      >
-                        {node.name}
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Box color="fg.muted">
-                        <LuFile size={16} />
-                      </Box>
-                      <Text color="fg.default" fontSize="sm">
-                        {node.name}
-                      </Text>
-                      {node.size && (
-                        <Text color="fg.subtle" fontSize="xs">
-                          {(node.size / 1024).toFixed(1)} KB
-                        </Text>
-                      )}
-                    </>
-                  )}
-                </HStack>
-
-                {node.type === "blob" && (
-                  <Checkbox.Root
-                    colorScheme="green"
-                    checked={selectedFiles.includes(node.path)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleNodeClick(node);
-                    }}
-                  />
-                )}
-              </HStack>
-            ))}
-          </VStack>
+          <FileTree
+            expanded={expandedPaths}
+            onSelect={(path) => {
+              const findNode = (
+                nodes: GitTreeNode[],
+                target: string,
+              ): GitTreeNode | null => {
+                for (const node of nodes) {
+                  if (node.path === target) return node;
+                  if (node.children) {
+                    const found = findNode(node.children, target);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+              const node = findNode(filteredFiles, path);
+              if (node && node.type === "blob") {
+                handleSelect(path);
+              }
+            }}
+          >
+            {renderTree(filteredFiles)}
+          </FileTree>
         )}
-      </Box>
-    </VStack>
+      </div>
+    </div>
   );
 };
 

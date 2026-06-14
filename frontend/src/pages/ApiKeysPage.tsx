@@ -1,37 +1,21 @@
 import { useEffect, useState } from "react";
-import {
-  Box,
-  Button,
-  Container,
-  Heading,
-  HStack,
-  Input,
-  VStack,
-  IconButton,
-  Spinner,
-  Grid,
-  GridItem,
-} from "@chakra-ui/react";
-import {
-  BiTrash,
-  BiEdit,
-  BiPlus,
-  BiArrowBack,
-  BiCopy,
-  BiCheck,
-  BiChevronDown,
-} from "react-icons/bi";
 import { useNavigate } from "react-router-dom";
+import { BiTrash, BiEdit, BiArrowBack, BiCopy, BiCheck } from "react-icons/bi";
 import { getApiConfigs, setApiProvider } from "../api/setup-api";
 import type { ApiConfig } from "../api/setup-api";
-import {
-  MenuRoot,
-  MenuTrigger,
-  MenuContent,
-  MenuItem,
-} from "../components/ui/menu";
 
 import { PROVIDERS_CONFIG } from "../entities/Constants";
+
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { Loader2 } from "lucide-react";
 
 const ApiKeysPage = () => {
   const navigate = useNavigate();
@@ -135,285 +119,171 @@ const ApiKeysPage = () => {
   };
 
   return (
-    <Box
-      minH="100vh"
-      bg="bg.canvas"
-      py={{ base: 4, md: 8 }}
-      px={{ base: 4, md: 8, lg: 12 }}
-    >
-      <Container maxW="7xl" p={0}>
+    <div className="min-h-screen bg-background py-4 md:py-8 px-4 md:px-8 lg:px-12">
+      <div className="max-w-7xl mx-auto p-0">
         {/* Header */}
-        <HStack
-          mb={{ base: 4, md: 8 }}
-          justify="space-between"
-          align="center"
-          borderBottom="1px solid"
-          borderColor="border.subtle"
-          pb={{ base: 4, md: 6 }}
-        >
-          <HStack gap={4}>
-            <IconButton
-              aria-label="Go back"
+        <div className="flex justify-between items-center mb-4 md:mb-8 border-b border-border pb-4 md:pb-6">
+          <div className="flex items-center gap-4">
+            <Button
               variant="ghost"
+              size="icon"
+              className="rounded-full hover:bg-muted"
               onClick={() => navigate(-1)}
-              borderRadius="full"
-              _hover={{ bg: "bg.subtle" }}
+              aria-label="Go back"
             >
               <BiArrowBack size={20} />
-            </IconButton>
-            <Box>
-              <Heading size="lg" fontWeight="bold" color="fg.default">
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">
                 API Keys Dashboard
-              </Heading>
-              <Box fontSize="sm" color="fg.muted" mt={1}>
+              </h1>
+              <div className="text-sm text-muted-foreground mt-1">
                 Manage credentials and endpoints for LLM providers securely
-              </Box>
-            </Box>
-          </HStack>
-        </HStack>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {loading ? (
-          <HStack justify="center" py={20}>
-            <Spinner size="xl" color="brand.600" />
-          </HStack>
+          <div className="flex justify-center py-20">
+            <Loader2 className="w-12 h-12 animate-spin text-primary" />
+          </div>
         ) : (
-          <Grid
-            templateColumns={{ base: "1fr", lg: "repeat(12, 1fr)" }}
-            gap={8}
-          >
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left Side: Keys Grid (8 columns) */}
-            <GridItem colSpan={{ base: 12, lg: 8 }}>
-              <VStack align="stretch" gap={6}>
-                <Box fontSize="lg" fontWeight="semibold" color="fg.default">
+            <div className="col-span-1 lg:col-span-8">
+              <div className="flex flex-col gap-6">
+                <div className="text-lg font-semibold text-foreground">
                   Active Providers ({keys.length})
-                </Box>
+                </div>
 
                 {keys.length === 0 ? (
-                  <Box
-                    p={{ base: 6, md: 12 }}
-                    bg="bg.panel"
-                    borderRadius="2xl"
-                    border="1px dashed"
-                    borderColor="border.default"
-                    textAlign="center"
-                    backdropFilter="blur(20px)"
-                  >
-                    <Box fontSize="md" color="fg.muted" mb={4}>
+                  <div className="p-6 md:p-12 bg-panel rounded-2xl border border-dashed border-border text-center backdrop-blur-xl">
+                    <div className="text-base text-muted-foreground mb-4">
                       No API keys configured yet.
-                    </Box>
-                    <Box fontSize="sm" color="fg.subtle">
+                    </div>
+                    <div className="text-sm text-muted-foreground/80">
                       Use the form on the right to configure your first provider
                       key.
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
                 ) : (
-                  <Grid
-                    templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
-                    gap={6}
-                  >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {keys.map((config) => (
-                      <Box
+                      <div
                         key={config.provider}
-                        p={{ base: 4, md: 6 }}
-                        bg="bg.panel"
-                        borderRadius="2xl"
-                        border="1px solid"
-                        borderColor="border.subtle"
-                        boxShadow="md"
-                        backdropFilter="blur(20px)"
-                        transition="all 0.3s ease"
-                        _hover={{
-                          transform: "translateY(-4px)",
-                          boxShadow: "lg",
-                          borderColor: "brand.500",
-                        }}
+                        className="p-4 md:p-6 bg-panel rounded-2xl border border-border shadow-md backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/50"
                       >
-                        <VStack align="stretch" gap={4}>
-                          <HStack justify="space-between">
-                            <Box
-                              fontWeight="bold"
-                              fontSize="md"
-                              color="brand.600"
-                              letterSpacing="wider"
-                            >
+                        <div className="flex flex-col gap-4">
+                          <div className="flex justify-between items-center">
+                            <div className="font-bold text-base text-primary tracking-wider">
                               {getDisplayName(config.provider)}
-                            </Box>
-                            <HStack gap={1}>
-                              <IconButton
-                                aria-label="Edit Key"
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
                                 variant="ghost"
-                                size="sm"
-                                borderRadius="lg"
+                                size="icon"
+                                className="h-8 w-8 rounded-lg"
                                 onClick={() => handleEdit(config)}
+                                aria-label="Edit Key"
                               >
                                 <BiEdit size={16} />
-                              </IconButton>
-                              <IconButton
-                                aria-label="Delete Key"
+                              </Button>
+                              <Button
                                 variant="ghost"
-                                size="sm"
-                                borderRadius="lg"
-                                colorPalette="red"
-                                color="red.500"
+                                size="icon"
+                                className="h-8 w-8 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-100/10 dark:hover:bg-red-900/20"
                                 onClick={() => handleDelete(config.provider)}
+                                aria-label="Delete Key"
                               >
                                 <BiTrash size={16} />
-                              </IconButton>
-                            </HStack>
-                          </HStack>
+                              </Button>
+                            </div>
+                          </div>
 
-                          <HStack
-                            bg="bg.muted"
-                            p={3}
-                            borderRadius="xl"
-                            border="1px solid"
-                            borderColor="border.subtle"
-                            justify="space-between"
-                            gap={2}
-                          >
-                            <Box
-                              fontFamily="monospace"
-                              fontSize="xs"
-                              color="fg.default"
-                              textOverflow="ellipsis"
-                              overflow="hidden"
-                              whiteSpace="nowrap"
-                            >
+                          <div className="flex justify-between items-center bg-muted p-3 rounded-xl border border-border gap-2">
+                            <div className="font-mono text-xs text-foreground overflow-hidden text-ellipsis whitespace-nowrap">
                               {maskKey(config.encrypted_key)}
-                            </Box>
+                            </div>
                             {config.encrypted_key && (
-                              <IconButton
-                                aria-label="Copy Key"
+                              <Button
                                 variant="ghost"
-                                size="xs"
+                                size="icon"
+                                className="h-6 w-6 rounded-md shrink-0"
                                 onClick={() =>
                                   handleCopy(
                                     config.provider,
                                     config.encrypted_key,
                                   )
                                 }
+                                aria-label="Copy Key"
                               >
                                 {copiedId === config.provider ? (
-                                  <BiCheck
-                                    size={16}
-                                    color="var(--chakra-colors-brand-600)"
-                                  />
+                                  <BiCheck size={16} className="text-primary" />
                                 ) : (
                                   <BiCopy size={14} />
                                 )}
-                              </IconButton>
+                              </Button>
                             )}
-                          </HStack>
-                        </VStack>
-                      </Box>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </Grid>
+                  </div>
                 )}
-              </VStack>
-            </GridItem>
+              </div>
+            </div>
 
             {/* Right Side: Add / Update Form (4 columns) */}
-            <GridItem colSpan={{ base: 12, lg: 4 }}>
-              <Box
-                p={{ base: 4, md: 6 }}
-                bg="bg.panel"
-                borderRadius="2xl"
-                border="1px solid"
-                borderColor={isEditing ? "brand.500" : "border.subtle"}
-                boxShadow="lg"
-                backdropFilter="blur(20px)"
-                position="sticky"
-                top="32px"
+            <div className="col-span-1 lg:col-span-4">
+              <div
+                className={`p-4 md:p-6 bg-panel rounded-2xl border ${
+                  isEditing ? "border-primary/50" : "border-border"
+                } shadow-lg backdrop-blur-xl sticky top-8`}
               >
-                <VStack align="stretch" gap={5}>
-                  <Box fontSize="lg" fontWeight="semibold" color="fg.default">
+                <div className="flex flex-col gap-5">
+                  <div className="text-lg font-semibold text-foreground">
                     {isEditing ? "Update API Key" : "Add Provider Key"}
-                  </Box>
+                  </div>
 
                   {isEditing ? (
-                    <Box
-                      p={3}
-                      bg="brand.50"
-                      color="brand.800"
-                      borderRadius="xl"
-                      fontSize="xs"
-                      fontWeight="medium"
-                    >
+                    <div className="p-3 bg-primary/10 text-primary rounded-xl text-xs font-medium">
                       Editing API key for{" "}
-                      <Box as="span" fontWeight="bold">
+                      <span className="font-bold">
                         {getDisplayName(selectedProvider)}
-                      </Box>
-                    </Box>
+                      </span>
+                    </div>
                   ) : (
-                    <Box>
-                      <Box
-                        mb={2}
-                        fontWeight="medium"
-                        fontSize="sm"
-                        color="fg.default"
-                      >
+                    <div>
+                      <div className="mb-2 font-medium text-sm text-foreground">
                         Provider
-                      </Box>
-                      <MenuRoot>
-                        <MenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            width="100%"
-                            justifyContent="space-between"
-                            borderRadius="12px"
-                            bg="bg.muted"
-                            borderColor="border.default"
-                            fontWeight="normal"
-                            color={
-                              selectedProvider ? "fg.default" : "fg.subtle"
-                            }
-                            py={6}
-                            px={4}
-                            fontSize="sm"
-                            _hover={{ borderColor: "brand.500" }}
-                            _active={{ borderColor: "brand.500" }}
-                          >
-                            {getDisplayName(selectedProvider) ||
-                              "Select a provider"}
-                            <BiChevronDown />
-                          </Button>
-                        </MenuTrigger>
-                        <MenuContent
-                          width="100%"
-                          borderRadius="12px"
-                          boxShadow="lg"
-                          bg="bg.panel"
-                          border="1px solid"
-                          borderColor="border.subtle"
-                        >
+                      </div>
+                      <Select
+                        value={selectedProvider}
+                        onValueChange={setSelectedProvider}
+                      >
+                        <SelectTrigger className="w-full h-12 rounded-xl bg-muted border-border font-normal text-sm">
+                          <SelectValue placeholder="Select a provider" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
                           {getUnusedProviders().map((p) => (
-                            <MenuItem
+                            <SelectItem
                               key={p.id}
                               value={p.id}
-                              onClick={() => setSelectedProvider(p.id)}
-                              px={4}
-                              py={3}
-                              cursor="pointer"
-                              transition="all 0.2s"
-                              _hover={{ bg: "bg.subtle", color: "brand.600" }}
+                              className="rounded-md"
                             >
                               {p.displayName}
-                            </MenuItem>
+                            </SelectItem>
                           ))}
-                        </MenuContent>
-                      </MenuRoot>
-                    </Box>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
 
-                  <Box>
-                    <Box
-                      mb={2}
-                      fontWeight="medium"
-                      fontSize="sm"
-                      color="fg.default"
-                    >
+                  <div>
+                    <div className="mb-2 font-medium text-sm text-foreground">
                       API Key
-                    </Box>
+                    </div>
                     <Input
                       placeholder="sk-..."
                       value={apiKeyInput}
@@ -422,46 +292,24 @@ const ApiKeysPage = () => {
                         if (apiKeyError) setApiKeyError(null); // clear on edit
                       }}
                       type="password"
-                      bg="bg.muted"
-                      borderRadius="12px"
-                      border="1px solid"
-                      borderColor={apiKeyError ? "red.500" : "border.default"}
-                      boxShadow={
+                      className={`h-12 rounded-xl bg-muted border ${
                         apiKeyError
-                          ? "0 0 0 1px var(--chakra-colors-red-500)"
-                          : undefined
-                      }
-                      py={6}
-                      px={4}
-                      fontSize="sm"
-                      _focus={{
-                        borderColor: apiKeyError ? "red.500" : "brand.500",
-                        boxShadow: apiKeyError
-                          ? "0 0 0 1px token(colors.red.500)"
-                          : "0 0 0 1px token(colors.brand.500)",
-                      }}
+                          ? "border-red-500 focus-visible:ring-red-500"
+                          : "border-border"
+                      }`}
                     />
                     {apiKeyError && (
-                      <Box
-                        mt={1.5}
-                        fontSize="xs"
-                        color="red.500"
-                        fontWeight="medium"
-                        display="flex"
-                        alignItems="center"
-                        gap={1}
-                      >
+                      <div className="mt-1.5 text-xs text-red-500 font-medium flex items-center gap-1">
                         ⚠ {apiKeyError}
-                      </Box>
+                      </div>
                     )}
-                  </Box>
+                  </div>
 
-                  <HStack gap={3} pt={2}>
+                  <div className="flex gap-3 pt-2">
                     {isEditing && (
                       <Button
                         variant="ghost"
-                        borderRadius="xl"
-                        flex={1}
+                        className="flex-1 rounded-xl"
                         onClick={() => {
                           setIsEditing(false);
                           setSelectedProvider("");
@@ -472,27 +320,25 @@ const ApiKeysPage = () => {
                       </Button>
                     )}
                     <Button
-                      bg="brand.600"
-                      color="white"
-                      borderRadius="xl"
-                      flex={2}
-                      _hover={{ bg: "brand.700" }}
-                      loading={isSubmitting}
+                      className="flex-[2] rounded-xl text-primary-foreground"
                       disabled={
                         !selectedProvider || !apiKeyInput.trim() || isSubmitting
                       }
                       onClick={handleSave}
                     >
+                      {isSubmitting && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       {isEditing ? "Update Key" : "Save Key"}
                     </Button>
-                  </HStack>
-                </VStack>
-              </Box>
-            </GridItem>
-          </Grid>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
-      </Container>
-    </Box>
+      </div>
+    </div>
   );
 };
 

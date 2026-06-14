@@ -1,5 +1,12 @@
-import { HStack, IconButton } from "@chakra-ui/react";
-import { Tooltip } from "./ui/tooltip";
+import { useState, useMemo, useEffect } from "react";
+import { RefreshCw } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "./ui/tooltip";
+import { Button } from "./ui/button";
 import { Constants } from "../entities/Constants.ts";
 import {
   apiKeySelection,
@@ -10,24 +17,7 @@ import { getApiModels } from "../api/setup-api.ts";
 import MenuHelper from "./MenuHelper.tsx";
 import useInitStore from "../store/initStore.ts";
 import APIKey from "./API-Key.tsx";
-import { useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import { PROVIDERS_CONFIG, type ProviderID } from "../entities/Constants.ts";
-
-const hstack = {
-  gap: { base: 1.5, md: 3 },
-  flexWrap: "wrap",
-  margin: "0px",
-  p: { base: 1.5, md: 2 },
-  bg: "glass.bg",
-  backdropFilter: "blur(12px)",
-  borderRadius: "xl",
-  border: "1px solid",
-  borderColor: "border.subtle",
-  boxShadow: "0 4px 20px -5px rgba(0, 0, 0, 0.05)",
-  alignItems: "center",
-  ml: 0,
-};
 
 const flattenArray = (val: any): string[] => {
   if (!val) return [];
@@ -246,7 +236,7 @@ const LLMModelChooser = () => {
   };
 
   return (
-    <HStack {...hstack}>
+    <div className="flex flex-wrap items-center gap-1.5 md:gap-3 p-1.5 md:p-2 bg-glass-bg backdrop-blur-xl border border-glass-border rounded-xl shadow-sm">
       <MenuHelper
         title={"API Provider"}
         options={llms}
@@ -276,42 +266,31 @@ const LLMModelChooser = () => {
 
       <APIKey provider={currentAPIProvider} title={"API KEY"} />
 
-      <Tooltip
-        content={
-          refreshing
-            ? "Fetching models..."
-            : "Refresh available models from your API keys"
-        }
-        positioning={{ placement: "top" }}
-        openDelay={400}
-      >
-        <IconButton
-          aria-label="Refresh models"
-          variant="ghost"
-          onClick={handleManualRefresh}
-          disabled={refreshing}
-          css={{
-            borderRadius: "xl",
-            color: "fg.muted",
-            minW: { base: "28px", md: "32px" },
-            h: { base: "28px", md: "32px" },
-            _hover: { bg: "whiteAlpha.100", color: "fg" },
-            _active: { bg: "whiteAlpha.200" },
-            "& svg": {
-              animation: refreshing ? "spin 1s linear infinite" : "none",
-              width: { base: "14px", md: "16px" },
-              height: { base: "14px", md: "16px" },
-            },
-            "@keyframes spin": {
-              "0%": { transform: "rotate(0deg)" },
-              "100%": { transform: "rotate(360deg)" },
-            },
-          }}
-        >
-          <RefreshCw size={16} />
-        </IconButton>
-      </Tooltip>
-    </HStack>
+      <TooltipProvider>
+        <Tooltip delayDuration={400}>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+              className="min-w-[28px] h-[28px] md:min-w-[32px] md:h-[32px] rounded-xl text-muted-foreground hover:bg-white/10 hover:text-foreground focus-visible:ring-1"
+            >
+              <RefreshCw
+                className={`w-[14px] h-[14px] md:w-[16px] md:h-[16px] ${refreshing ? "animate-spin" : ""}`}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>
+              {refreshing
+                ? "Fetching models..."
+                : "Refresh available models from your API keys"}
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
   );
 };
 

@@ -21,6 +21,7 @@ class MessageRequest(BaseModel):
     isFirst: bool = False
     msg: str
     files: Optional[List[str]] = None
+    mcp_enabled: bool = True
 
 
 class QdrantClient(BaseModel):
@@ -111,6 +112,7 @@ class MCPModel(BaseModel):
     gallery: Optional[str] = None
     version: Optional[str] = None
     api_key: Optional[str] = None
+    is_active: bool = False
 
 
 class PaginatedSessionResponse(BaseModel):

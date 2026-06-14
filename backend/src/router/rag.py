@@ -1,83 +1,30 @@
 import json
-import os
 import uuid
 from typing import List
 
-import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from loguru import logger
 from sqlmodel import Session, select
 
-from src.config.settings import settings
-from src.db.dbs import get_db
-from src.db.redis_client import aredis as redis_client
-from src.models.enums import KBSourceType, KBStatus
-from src.models.models import KnowledgeBase, User
-from src.models.schema import GitRequest, GitSpec
-from src.router.auth import get_current_user
-from src.router.limiter import limiter
-from src.service.db_service import ensure_kb
-from src.service.repo_limits import RepoTooLargeError, enforce_repo_limits
-from src.service.s3 import upload_file_to_s3
-from src.service.tasks import ingest_git_repo_task, ingest_pdf_task
-from src.service.utils import get_dir_struct
+from src.db.redisdb import aredis as redis_client
+
+from ..db.dbs import get_db
+from ..models.enums import KBSourceType, KBStatus
+from ..models.models import KnowledgeBase, User
+from ..models.schema import GitRequest, GitSpec
+from ..router.auth import get_current_user
+from ..router.limiter import limiter
+from ..service.background.tasks import ingest_git_repo_task, ingest_pdf_task
+from ..service.chat_service import ChatService
+from ..service.pipelines.code.tree_sitter.code_utils import (
+    CodeUtils,
+    RepoTooLargeError,
+)
+from ..service.s3 import S3Service
 
 router = APIRouter()
 
-
-async def validate_and_get_commit_sha(req: GitRequest) -> tuple[str, str]:
-    """
-    Validates the GitHub repository, finds the appropriate branch/commit,
-    and returns the commit SHA and resolved branch/ref.
-    """
-    headers = {}
-    github_token = req.token or settings.github_token
-    if github_token:
-        headers["Authorization"] = f"token {github_token}"
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            meta = await client.get(
-                f"https://api.github.com/repos/{req.owner}/{req.repo}",
-                headers=headers,
-            )
-            if meta.status_code == 404 or meta.status_code == 301:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Repository '{req.owner}/{req.repo}' not found or not accessible.",
-                )
-            meta.raise_for_status()
-
-            ref = req.commit or req.branch or meta.json()["default_branch"]
-
-            resp = await client.get(
-                f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
-                headers=headers,
-            )
-
-            # if resp.status_code == 422 and req.branch == "main" and not req.commit:
-            #     default_branch = meta.json()["default_branch"]
-            #     if default_branch != "main":
-            #         ref = default_branch
-            #         resp = await client.get(
-            #             f"https://api.github.com/repos/{req.owner}/{req.repo}/commits/{ref}",
-            #             headers=headers,
-            #         )
-
-        if resp.status_code != 200:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Failed to fetch repo from GitHub: {resp.text}",
-            )
-
-        return resp.json()["sha"], ref
-
-    except httpx.RequestError as exc:
-        logger.error(f"GitHub API connection error: {exc}")
-        raise HTTPException(
-            status_code=503,
-            detail="Failed to connect to GitHub. Please check your network or try again.",
-        )
+s3 = S3Service()
 
 
 @router.post("/git")
@@ -91,10 +38,11 @@ async def git_rag(
     user: User = Depends(get_current_user),
 ):
     """Triggers the background ingestion of a Git repository via Celery."""
-    sha, ref = await validate_and_get_commit_sha(req)
+    code = CodeUtils(req)
+    sha, ref = await code.validate_and_get_commit_sha()
 
     try:
-        await enforce_repo_limits(req, ref)
+        await code.enforce_repo_limits(ref)
     except RepoTooLargeError as e:
         logger.warning(f"Repo rejected for size: {req.owner}/{req.repo}: {e}")
         raise HTTPException(status_code=413, detail=str(e))
@@ -107,10 +55,9 @@ async def git_rag(
 
     logger.info(f"Owner:{req.owner}  Repo:{req.repo} req:{req}")
 
-    kb = await ensure_kb(
+    kb = await ChatService(db).ensure_kb(
         kb_id=kb_id,
         session_id=session_id,
-        db=db,
         source_type=KBSourceType.GITHUB,
         source_ref=f"{req.owner}/{req.repo}",
     )
@@ -183,10 +130,9 @@ async def get_rag(
 
     source_ref = ",".join([f.filename for f in files if f.filename])
 
-    await ensure_kb(
+    await ChatService(db).ensure_kb(
         kb_id=kb_id,
         session_id=session_id,
-        db=db,
         source_type=KBSourceType.PDF,
         source_ref=source_ref,
     )
@@ -196,7 +142,7 @@ async def get_rag(
         if not file.filename:
             continue
         try:
-            s3_key = await upload_file_to_s3(file=file, kb_id=kb_id)
+            s3_key = await s3.upload_file_to_s3(file=file, kb_id=kb_id)
         except Exception as e:
             logger.error(f"Failed to upload file to S3: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -221,7 +167,7 @@ async def get_rag(
 @router.post("/tree")
 async def get_tree(reques: GitSpec):
     logger.info(f"Directory structure request received: {reques}")
-    tree = await get_dir_struct(reques)
+    tree = await CodeUtils(reques).get_dir_struct()
     return tree
 
 
@@ -316,45 +262,3 @@ async def get_status(
 
 
 mock_status_counters = {}
-
-
-@router.get("/mock/status")
-async def get_mock_status(kb_id: str, db: Session = Depends(get_db)):
-    """Retrieves a mock sequence of ingestion statuses."""
-    global mock_status_counters
-
-    if kb_id not in mock_status_counters:
-        mock_status_counters[kb_id] = 0
-
-    count = mock_status_counters[kb_id]
-    mock_status_counters[kb_id] += 1
-
-    if count == 0:
-        return {
-            "kb_id": kb_id,
-            "status": "processing",
-            "detail": "Indexing has been Initialized",
-        }
-    elif count == 1:
-        return {
-            "kb_id": kb_id,
-            "status": "processing",
-            "detail": "Fetching Github Repository",
-        }
-    elif count == 2:
-        return {"kb_id": kb_id, "status": "processing", "detail": "Analyzing Structure"}
-    elif count == 3:
-        return {"kb_id": kb_id, "status": "processing", "detail": "Parsing Code"}
-    elif count == 4:
-        return {
-            "kb_id": kb_id,
-            "status": "processing",
-            "detail": "Uploading to Databases",
-        }
-    else:
-        import random
-
-        fail = random.randint(0, 1) <= 0.2
-        if fail:
-            return {"kb_id": kb_id, "status": "failed", "detail": "Indexing Failed"}
-        return {"kb_id": kb_id, "status": "ready", "detail": "Query Now"}

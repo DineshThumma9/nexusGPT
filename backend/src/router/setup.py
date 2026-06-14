@@ -2,7 +2,6 @@ import json
 from typing import Dict, List, Tuple
 
 import httpx
-import requests as _requests
 from dotenv import load_dotenv
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from loguru import logger
@@ -10,20 +9,18 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db import get_db
-from src.db.redis_client import aredis as redis
-from src.models.models import APIKEYS, User, UserLLMConfig, UserMCPConfig
-from src.models.schema import API_KEY_REQUEST, API_KEY_RESPONSE, MCPModel
-from src.router.auth import get_current_user
-from src.service.constants import _VALIDATION_URLS
-from src.service.setup_service import (
-    VALID_PROVIDERS,
-    get_valid_models,
-)
-from src.service.utils import decrypt, encrypt
+from src.db.redisdb import aredis as redis
+
+from ..db import get_db
+from ..models.models import APIKEYS, User, UserLLMConfig, UserMCPConfig
+from ..models.schema import API_KEY_REQUEST, API_KEY_RESPONSE, MCPModel
+from ..service.auth_service import AuthService, get_current_user
+from ..service.constants import _VALIDATION_URLS, VALID_PROVIDERS
+from ..service.crypto import CyrptoService
 
 load_dotenv()
 router = APIRouter()
+crypto = CyrptoService()
 
 # Global httpx client with connection pooling
 _http_client: httpx.AsyncClient | None = None
@@ -47,10 +44,6 @@ async def close_http_client():
         await _http_client.aclose()
         _http_client = None
 
-# ---------------------------------------------------------------------------
-# API key validation: cheap test call to each provider's models endpoint
-# ---------------------------------------------------------------------------
-
 
 async def _validate_api_key(provider: str, api_key: str) -> Tuple[bool, str]:
     """Returns (is_valid, error_message)."""
@@ -68,9 +61,7 @@ async def _validate_api_key(provider: str, api_key: str) -> Tuple[bool, str]:
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
             )
         else:
-            r = await client.get(
-                url, headers={"Authorization": f"Bearer {api_key}"}
-            )
+            r = await client.get(url, headers={"Authorization": f"Bearer {api_key}"})
     except httpx.TimeoutException:
         logger.warning(f"Key validation timeout for {provider} (5s)")
         return True, ""  # Timeout — don't block, assume valid
@@ -103,7 +94,7 @@ async def set_api_provider(
             detail={"error_type": "invalid_api_key", "message": err_msg},
         )
 
-    encrypted_key = encrypt(api_key)
+    encrypted_key = crypto.encrypt(api_key)
 
     existing = await db.execute(
         select(APIKEYS).where(
@@ -221,8 +212,11 @@ async def api_config(
 
 
 @router.get("/api-models")
-async def valid_models():
-    return await get_valid_models()
+async def valid_models(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return await AuthService(db).get_valid_models(user)
 
 
 @router.post("/mcp-config")
@@ -234,7 +228,6 @@ async def setup_mcp(
 
     # 1. Extract incoming server URLs
     incoming_urls = [item.server_url for item in mcp_list]
-
     # 2. Delete any existing servers for this user that are NOT in the incoming list
     if incoming_urls:
         stmt = delete(UserMCPConfig).where(
@@ -256,7 +249,7 @@ async def setup_mcp(
                 logger.info("No api key for " + item.server_url)
                 encrypt_key = None
             else:
-                encrypt_key = encrypt(api_key)
+                encrypt_key = crypto.encrypt(api_key)
 
             mcp = await db.execute(
                 select(UserMCPConfig).where(
@@ -286,8 +279,8 @@ async def setup_mcp(
     await db.commit()
 
     try:
-        redis.delete(f"mcp_config_client:{user.userid}")
-        redis.delete(f"mcp_config_ui:{user.userid}")
+        await redis.delete(f"mcp_config_client:{user.userid}")
+        await redis.delete(f"mcp_config_ui:{user.userid}")
     except Exception as e:
         logger.error(f"Failed to clear Redis cache: {e}")
 
@@ -322,16 +315,16 @@ async def get_mcp_config(
 
     result = []
     for c in mcp_configs:
-        decrypted_key = decrypt(c.api_key) if c.api_key else None
+        decrypted_key = crypto.decrypt(c.api_key) if c.api_key else None
         c.api_key = decrypted_key
         result.append(MCPModel(**c.model_dump()))
 
     try:
         # Cache with async Redis for non-blocking I/O
         await redis.setex(
-            cache_key, 
+            cache_key,
             86400,  # 24 hour TTL
-            json.dumps([m.model_dump() for m in result], default=str)
+            json.dumps([m.model_dump() for m in result], default=str),
         )
         logger.info(f"Cached MCP config for {cache_key}")
     except Exception as e:
@@ -339,3 +332,12 @@ async def get_mcp_config(
         # Continue even if cache write fails
 
     return result
+
+
+@router.get("/mcp-tools/count")
+async def get_mcp_tools_count(user: User = Depends(get_current_user)):
+    from src.service.agent.mcp import MCPService
+
+    mcp_service = MCPService(user.userid)
+    count_data = await mcp_service.get_tools_count()
+    return count_data

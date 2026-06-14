@@ -7,7 +7,7 @@ import useValidationStore from "../store/validationStore";
 
 export const API_BASE_URL = import.meta.env.VITE_API_URI;
 
-import { toaster } from "../components/ui/toaster";
+import { toast } from "sonner";
 
 const handleAuthError = () => {
   console.log("Authentication failed - clearing user session");
@@ -89,10 +89,8 @@ const addErrorInterceptor = (
         }
 
         if ([422, 429, 413, 402, 500].includes(status)) {
-          toaster.create({
-            title,
+          toast.error(title, {
             description: message,
-            type: "error",
             duration: 5000,
           });
         }

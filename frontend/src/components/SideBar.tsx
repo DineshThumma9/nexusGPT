@@ -1,5 +1,4 @@
 // src/components/SideBar.tsx
-import { Box, Button, Spinner, Stack, Text, VStack } from "@chakra-ui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import { useEffect, useRef, useState } from "react";
@@ -7,6 +6,7 @@ import SideBarNav from "./SideBarNav";
 import SessionComponent from "./SessionComponent";
 import useSessions from "../hooks/useSessions.ts";
 import sessionStore from "../store/sessionStore";
+import { Button } from "./ui/button";
 
 interface SidebarProps {
   onCollapse?: (collapsed: boolean) => void;
@@ -26,52 +26,6 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
 
   // Sentinel ref for IntersectionObserver
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  const boxStyles = {
-    transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-    bg: "bg.sidebar",
-    color: "fg.default",
-    h: "100vh",
-    p: 2,
-    overflow: "hidden",
-    borderRight: "1px solid",
-    borderColor: "border.emphasized",
-    position: "relative" as const,
-  };
-
-  const collapsibleButtonStyles = {
-    bg: "glass.bg",
-    color: "brand.600",
-    border: "1px solid",
-    borderColor: "border.subtle",
-    _hover: {
-      bg: "brand.subtle",
-      transform: "scale(1.05)",
-      borderColor: "brand.500",
-    },
-    _active: {
-      transform: "scale(0.95)",
-    },
-    transition: "all 0.2s",
-    size: "xs" as const,
-    mb: 4,
-    borderRadius: "lg",
-  };
-
-  const stackStyles = {
-    gap: 0,
-    align: "stretch" as const,
-    overflowY: "auto" as const,
-    flex: "1",
-    pr: 1,
-  };
-
-  const sessionStackStyles = {
-    borderRadius: "12px",
-    padding: "0px",
-    margin: "0",
-    transition: "all 0.2s ease",
-  };
 
   const handleToggle = () => {
     const newCollapsed = !collapsed;
@@ -135,52 +89,41 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
             ease: "easeOut",
             delay: Math.min(index * 0.04, 0.4),
           }}
+          className="px-1 py-0.5"
         >
-          <Stack
-            {...sessionStackStyles}
-            bg={isActive ? "brand.subtle" : "transparent"}
-            borderRadius="2xl"
-            px={2}
-            py={1.5}
-            border="1px solid"
-            borderColor={isActive ? "brand.200" : "transparent"}
-            _hover={{
-              bg: isActive ? "brand.subtle" : "bg.subtle",
-              borderColor: isActive ? "brand.300" : "border.subtle",
-            }}
-          >
-            <SessionComponent
-              bg="transparent"
-              color={isActive ? "brand.700" : "fg.default"}
-              title={session.title || "New Chat"}
-              sessionId={sessionId}
-              onSelect={() => handleSessionSelect(sessionId)}
-            />
-          </Stack>
+          <SessionComponent
+            isActive={isActive}
+            title={session.title || "New Chat"}
+            sessionId={sessionId}
+            onSelect={() => handleSessionSelect(sessionId)}
+          />
         </motion.div>
       );
     });
   };
 
   return (
-    <Box
-      w={{ base: "full", md: collapsed ? "50px" : "240px" }}
-      {...boxStyles}
-      borderRight={{ base: "none", md: "1px solid" }}
-      borderColor={{ base: "transparent", md: "border.emphasized" }}
+    <div
+      className={`transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] bg-sidebar text-foreground h-screen p-3 overflow-hidden border-r relative ${
+        collapsed ? "w-[50px]" : "w-full md:w-[240px]"
+      } border-transparent md:border-border/50`}
     >
       <Button
-        width={collapsed ? "28px" : "40px"}
-        height={collapsed ? "28px" : "40px"}
+        variant="outline"
+        size="icon"
+        className={`hidden md:flex mb-4 transition-all duration-150 bg-background border border-border text-muted-foreground hover:text-foreground hover:bg-accent ${
+          collapsed ? "w-7 h-7" : "w-10 h-10"
+        }`}
         onClick={handleToggle}
         aria-label="Toggle sidebar"
-        display={{ base: "none", md: "flex" }}
-        {...collapsibleButtonStyles}
       >
         {collapsed ? <FiChevronRight /> : <FiChevronLeft />}
       </Button>
 
-      <VStack align="stretch" gap={4} height="calc(100% - 80px)">
+      <div
+        className="flex flex-col items-stretch gap-4"
+        style={{ height: "calc(100% - 80px)" }}
+      >
         <AnimatePresence mode="wait">
           {!collapsed && (
             <motion.div
@@ -198,55 +141,45 @@ export default function Sidebar({ onCollapse }: SidebarProps) {
             >
               <SideBarNav />
 
-              <VStack {...stackStyles}>
+              <div className="flex-1 flex flex-col items-stretch gap-0 overflow-y-auto pr-1">
                 {isLoading && sessions.length === 0 && (
-                  <Box p={4}>
-                    <Text fontSize="sm" color="fg.muted" textAlign="center">
+                  <div className="p-4">
+                    <p className="text-sm text-muted-foreground text-center">
                       Loading sessions...
-                    </Text>
-                  </Box>
+                    </p>
+                  </div>
                 )}
 
                 {!isLoading && sessions.length === 0 && (
-                  <Box p={4}>
-                    <Text
-                      fontSize="sm"
-                      color="fg.subtle"
-                      textAlign="center"
-                      lineHeight="1.6"
-                    >
+                  <div className="p-4">
+                    <p className="text-sm text-muted-foreground text-center leading-relaxed">
                       No chat sessions yet.
                       <br />
                       Create your first chat!
-                    </Text>
-                  </Box>
+                    </p>
+                  </div>
                 )}
 
                 {renderSessions()}
 
                 {/* Infinite scroll sentinel */}
-                <Box ref={sentinelRef} py={1}>
+                <div ref={sentinelRef} className="py-1">
                   {isFetchingMore && (
-                    <Box display="flex" justifyContent="center" py={2}>
-                      <Spinner size="sm" color="brand.500" />
-                    </Box>
+                    <div className="flex justify-center py-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                    </div>
                   )}
                   {!sessionHasMore && sessions.length > 0 && (
-                    <Text
-                      fontSize="xs"
-                      color="fg.subtle"
-                      textAlign="center"
-                      py={2}
-                    >
+                    <p className="text-xs text-muted-foreground text-center py-2">
                       All sessions loaded
-                    </Text>
+                    </p>
                   )}
-                </Box>
-              </VStack>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
-      </VStack>
-    </Box>
+      </div>
+    </div>
   );
 }

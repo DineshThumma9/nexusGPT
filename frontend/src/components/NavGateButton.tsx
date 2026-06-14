@@ -1,5 +1,7 @@
-import { Button, ButtonGroup, Separator } from "@chakra-ui/react";
+import { Button } from "./ui/button";
 import { Link } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+
 interface Props {
   login_register: string;
   message: string;
@@ -15,74 +17,28 @@ const NavGateButton = ({
   onSubmit,
   altlink,
 }: Props) => {
-  const buttonGroup = {
-    alignSelf: "center",
-    alignContent: "center",
-    flexDirection: "column" as const,
-    alignItems: "stretch",
-    gap: 4,
-    width: "100%",
-  };
-
-  const submitButtonStyles = {
-    bg: { base: "brand.700", _dark: "brand.600" },
-    color: "white",
-    border: "none",
-    width: "100%",
-    _hover: {
-      bg: { base: "brand.800", _dark: "brand.500" },
-      transform: "scale(1.02)",
-    },
-    _active: {
-      transform: "scale(0.98)",
-    },
-    transition: "all 0.2s",
-    fontWeight: "600",
-    fontSize: "md",
-    fontFamily: "body",
-    py: 3,
-    borderRadius: "lg",
-    boxShadow: "sm",
-  };
-
-  const outlineButtonStyles = {
-    bg: "transparent",
-    color: "fg.default",
-    border: "1px solid",
-    borderColor: "border.default",
-    width: "100%",
-    _hover: {
-      bg: "bg.subtle",
-      borderColor: "border.emphasized",
-      transform: "scale(1.02)",
-    },
-    _active: {
-      transform: "scale(0.98)",
-    },
-    transition: "all 0.2s",
-    fontWeight: "500",
-    fontSize: "md",
-    fontFamily: "body",
-    py: 3,
-    borderRadius: "lg",
-  };
-
   return (
-    <ButtonGroup {...buttonGroup}>
+    <div className="flex flex-col items-stretch gap-4 w-full">
       <Button
-        onClick={() => onSubmit()}
-        loading={isLoading}
-        {...submitButtonStyles}
+        onClick={onSubmit}
+        disabled={isLoading}
+        className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-150 font-medium text-sm rounded-xl shadow-sm"
       >
+        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         {login_register}
       </Button>
 
-      <Separator borderColor="border.default" my={2} />
+      <div className="h-px bg-border w-full my-2" />
 
-      <Link to={altlink} style={{ width: "100%" }}>
-        <Button {...outlineButtonStyles}>{message}</Button>
+      <Link to={altlink} className="w-full">
+        <Button
+          variant="outline"
+          className="w-full h-11 border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-150 font-medium text-sm rounded-xl"
+        >
+          {message}
+        </Button>
       </Link>
-    </ButtonGroup>
+    </div>
   );
 };
 

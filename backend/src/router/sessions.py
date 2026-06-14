@@ -1,4 +1,3 @@
-import json
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -13,11 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
-from src.db.dbs import get_db
-from src.db.redis_client import aredis as redis
-from src.models.models import KnowledgeBase, Message, User
-from src.models.models import Session as SessionModel
-from src.models.schema import (
+from src.db.redisdb import aredis as redis
+
+from ..db.dbs import get_db
+from ..models.models import KnowledgeBase, Message, User
+from ..models.models import Session as SessionModel
+from ..models.schema import (
     ChatMessage,
     PaginatedMessageResponse,
     PaginatedSessionResponse,
@@ -25,9 +25,12 @@ from src.models.schema import (
     TitleResponse,
     TitleUpdateRequest,
 )
-from src.router.auth import get_current_user
-from src.router.limiter import limiter
-from src.service.utils import decode_cursor, encode_cursor
+from ..router.limiter import limiter
+from ..service.auth_service import get_current_user
+from ..service.crypto import CyrptoService
+from ..service.pipelines.code.tree_sitter.cleanup import wipe_kb_data
+
+crypto = CyrptoService()
 
 
 class CreateSessionRequest(BaseModel):
@@ -85,7 +88,7 @@ async def get_chat_history(
     query = select(Message).where(Message.session_id == session_id)
 
     if cursor:
-        timestamp, _id = decode_cursor(cursor)
+        timestamp, _id = crypto.decode_cursor(cursor)
         # Scroll UP — load messages OLDER than the cursor
         query = query.filter(
             or_(
@@ -112,7 +115,7 @@ async def get_chat_history(
     next_cursor = None
     if has_more:
         # Cursor points to the oldest message in the current page (first after reversal)
-        next_cursor = encode_cursor(items[0].timestamp, str(items[0].message_id))
+        next_cursor = crypto.encode_cursor(items[0].timestamp, str(items[0].message_id))
 
     messages = [ChatMessage.model_validate(msg) for msg in items]
 
@@ -215,6 +218,14 @@ async def delete_session(
                     kb_result = await db.execute(kb_stmt)
                     if kb := kb_result.scalars().first():
                         await db.delete(kb)
+                        # Only wipe vector/graph data if the KB is actually orphaned and deleted
+                        try:
+                            await wipe_kb_data(kb_id=kb_id_to_check)
+                            logger.info(
+                                f"Wiped graph and vector data for orphaned KB: {kb_id_to_check}"
+                            )
+                        except Exception as wipe_err:
+                            logger.error(f"Failed to wipe KB data: {wipe_err}")
 
         await db.commit()
 
@@ -249,18 +260,19 @@ async def get_all_sessions(
     try:
         # Generate cache key including pagination parameters
         cache_key = f"sessions_all:{user.userid}:{limit}:{cursor or 'none'}"
-        
+
         # Try to get from cache first
         try:
             cached = await redis.get(cache_key)
             if cached:
                 logger.info(f"Cache hit for {cache_key}")
                 import json
+
                 return PaginatedSessionResponse(**json.loads(cached))
         except Exception as e:
             logger.warning(f"Redis read error: {e}")
             # Continue to DB if cache fails
-        
+
         from src.models.models import KnowledgeBase
 
         query = (
@@ -270,7 +282,7 @@ async def get_all_sessions(
         )
 
         if cursor:
-            cursor_updated_at, cursor_id = decode_cursor(cursor)
+            cursor_updated_at, cursor_id = crypto.decode_cursor(cursor)
             if cursor_updated_at:
                 query = query.where(
                     or_(
@@ -304,7 +316,7 @@ async def get_all_sessions(
 
         if has_more:
             last = page[-1][0]  # last SessionModel
-            next_cursor = encode_cursor(
+            next_cursor = crypto.encode_cursor(
                 last.updated_at or last.created_at,
                 str(last.session_id),
             )
@@ -314,20 +326,21 @@ async def get_all_sessions(
             next_cursor=next_cursor,
             has_more=has_more,
         )
-        
+
         # Cache the response for 60 seconds
         try:
             import json
+
             await redis.setex(
-                cache_key, 
+                cache_key,
                 60,  # TTL: 60 seconds
-                json.dumps(response.model_dump(), default=str)
+                json.dumps(response.model_dump(), default=str),
             )
             logger.info(f"Cached response for {cache_key}")
         except Exception as e:
             logger.warning(f"Redis write error: {e}")
             # Continue even if cache write fails
-        
+
         return response
 
     except Exception as e:

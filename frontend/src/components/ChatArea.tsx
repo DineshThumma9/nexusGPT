@@ -1,12 +1,17 @@
 // src/components/ChatArea.tsx
-import { Box, HStack, VStack, IconButton, Collapsible } from "@chakra-ui/react";
 import { FiMenu, FiCpu } from "react-icons/fi";
 import LLMModelChooser from "./LLMModelChooser";
 import AvaterExpandable from "./AvaterExpandable";
 import SendRequest from "./SendRequest";
 import Response from "./Response";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import sessionStore from "../store/sessionStore.ts";
+import { Button } from "./ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 
 interface ChatAreaProps {
   onOpenSidebar?: () => void;
@@ -20,122 +25,74 @@ const ChatArea = ({ onOpenSidebar }: ChatAreaProps) => {
     return unsubscribe;
   }, []);
 
-  // ── header bar: floats over chat, transparent background ──
-  const headerStyles = {
-    justifyContent: "space-between",
-    alignItems: "center",
-    position: "absolute" as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    bg: "transparent",
-    zIndex: 100,
-    px: { base: 2, md: 6 },
-    pt: { base: 2, md: 2 },
-  };
-
-  // ── input bar: floats over chat at the bottom, same treatment as header ──
-  const footerStyles = {
-    position: "absolute" as const,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
-    // No background here — SendRequest itself handles the glass pill
-    bg: "transparent",
-    pointerEvents: "none" as const, // let clicks pass through the transparent gap
-  };
-
   return (
-    <Box
-      flex="1"
-      h="100vh"
-      bg="bg.canvas"
-      overflow="hidden"
-      position="relative"
-    >
+    <div className="flex-1 h-screen bg-background overflow-hidden relative">
       {/* ── Floating header ── */}
-      <HStack {...headerStyles}>
-        <HStack gap={1} minW={0} flex="1" overflow="hidden">
+      <div className="flex justify-between items-center absolute top-0 left-0 right-0 bg-transparent z-50 px-2 md:px-6 pt-2 md:pt-2">
+        <div className="flex gap-1 min-w-0 flex-1 overflow-hidden">
           {/* Hamburger — mobile only */}
-          <IconButton
+          <Button
             aria-label="Open sidebar"
             onClick={onOpenSidebar}
-            display={{ base: "flex", md: "none" }}
             variant="ghost"
-            size="sm"
-            flexShrink={0}
+            size="icon"
+            className="md:hidden shrink-0"
           >
-            <FiMenu />
-          </IconButton>
+            <FiMenu className="h-5 w-5" />
+          </Button>
 
           {/* Model chooser toggle — mobile only */}
-          <Collapsible.Root
+          <Collapsible
             open={modelChooserOpen}
-            onOpenChange={(e) => setModelChooserOpen(e.open)}
-            display={{ base: "block", md: "none" }}
+            onOpenChange={setModelChooserOpen}
+            className="md:hidden"
           >
-            <Collapsible.Trigger asChild>
-              <IconButton
+            <CollapsibleTrigger asChild>
+              <Button
                 aria-label="Toggle model chooser"
-                variant={modelChooserOpen ? "solid" : "ghost"}
-                size="sm"
-                flexShrink={0}
+                variant={modelChooserOpen ? "default" : "ghost"}
+                size="icon"
+                className="shrink-0"
               >
-                <FiCpu />
-              </IconButton>
-            </Collapsible.Trigger>
-          </Collapsible.Root>
+                <FiCpu className="h-5 w-5" />
+              </Button>
+            </CollapsibleTrigger>
+          </Collapsible>
 
           {/* Model chooser — desktop only */}
-          <Box display={{ base: "none", md: "block" }} minW={0}>
+          <div className="hidden md:block min-w-0">
             <LLMModelChooser />
-          </Box>
-        </HStack>
+          </div>
+        </div>
 
         <AvaterExpandable />
-      </HStack>
+      </div>
 
       {/* Mobile model chooser dropdown */}
-      <Collapsible.Root
-        open={modelChooserOpen}
-        display={{ base: "block", md: "none" }}
-      >
-        <Collapsible.Content
-          style={{
-            position: "absolute",
-            top: "50px",
-            left: "8px",
-            right: "8px",
-            zIndex: 99,
-          }}
+      <Collapsible open={modelChooserOpen} className="md:hidden">
+        <CollapsibleContent
+          className="absolute z-40"
+          style={{ top: "50px", left: "8px", right: "8px" }}
         >
-          <Box
-            bg="bg.canvas"
-            p={2}
-            borderRadius="xl"
-            border="1px solid"
-            borderColor="border.subtle"
-            boxShadow="md"
-          >
+          <div className="bg-background p-2 rounded-xl border border-border shadow-md">
             <LLMModelChooser />
-          </Box>
-        </Collapsible.Content>
-      </Collapsible.Root>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* ── Messages scroll area — fills full height, padded so content clears header & input ── */}
-      <Box h="100%" overflow="hidden">
+      <div className="h-full overflow-hidden">
         <Response />
-      </Box>
+      </div>
 
       {/* ── Floating input — absolutely pinned at bottom, transparent gap visible ── */}
-      <Box {...footerStyles}>
+      <div className="absolute bottom-0 left-0 right-0 z-50 bg-transparent pointer-events-none">
         {/* Re-enable pointer events only on the pill itself (handled inside SendRequest) */}
-        <Box pointerEvents="auto">
+        <div className="pointer-events-auto">
           <SendRequest />
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 };
 

@@ -1,24 +1,8 @@
 "use client";
 
-import {
-  Box,
-  Button,
-  Dialog,
-  Field,
-  HStack,
-  IconButton,
-  Portal,
-  Text,
-  VStack,
-  CodeBlock,
-  CodeBlockAdapterProvider,
-  createShikiAdapter,
-  Separator,
-  Flex,
-} from "@chakra-ui/react";
 import React, { useState, useEffect } from "react";
-import { getMcpConfig, saveMcpConfig } from "../api/setup-api";
-import { toaster } from "./ui/toaster";
+import { getMcpConfig, saveMcpConfig, getMcpToolCount } from "../api/setup-api";
+import { toast } from "sonner";
 import {
   FiSave,
   FiX,
@@ -27,66 +11,54 @@ import {
   FiCode,
   FiEye,
 } from "react-icons/fi";
-import type { HighlighterGeneric } from "shiki";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { ScrollArea } from "./ui/scroll-area";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "./ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import {
+  Trash2,
+  Plus,
+  Server,
+  Key,
+  Link as LinkIcon,
+  Edit3,
+  Power,
+} from "lucide-react";
+import { Switch } from "./ui/switch";
 
 interface Props {
   onClose: () => void;
   onError?: () => void; // called when background save fails so parent can show red indicator
 }
 
-const shikiAdapter = createShikiAdapter<HighlighterGeneric<any, any>>({
-  async load() {
-    const { createHighlighter } = await import("shiki");
-    return createHighlighter({
-      langs: ["json"],
-      themes: ["github-dark", "github-light"],
-    });
-  },
-});
-
-const dialogHeader = {
-  p: { base: 4, md: 6 },
-  pb: { base: 2, md: 4 },
-};
-
-const dialogBody = {
-  p: { base: 4, md: 6 },
-  pt: 2,
-  color: "fg",
-};
-
-const dialogFooter = {
-  p: { base: 4, md: 6 },
-  pt: { base: 3, md: 4 },
-  gap: 3,
-};
-
-const getTextareaStyle = (isValid: boolean): React.CSSProperties => ({
-  width: "100%",
-  height: "350px",
-  padding: "16px",
-  borderRadius: "12px",
-  border: `1px solid ${isValid ? "var(--chakra-colors-border-default)" : "var(--chakra-colors-red-500)"}`,
-  backgroundColor: "rgba(0, 0, 0, 0.2)",
-  color: "var(--chakra-colors-fg)",
-  fontFamily:
-    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-  fontSize: "14px",
-  lineHeight: "1.5",
-  outline: "none",
-  resize: "none",
-  transition: "all 0.2s ease",
-  boxSizing: "border-box",
-});
-
 const PLACEHOLDER_JSON = `[
   {
-    "type": "sse",
+    "type": "http",
     "server_url": "",
     "auth_header": "Authorization",
     "api_key": "",
-    "version": "1.0",
-    "gallery": ""
+    "is_active": false
   }
 ]`;
 
@@ -94,7 +66,11 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
   const [rawJson, setRawJson] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
+  const [activeTab, setActiveTab] = useState<string>("visual");
+  const [toolCount, setToolCount] = useState<{
+    total_available: number;
+    active: number;
+  } | null>(null);
 
   // Validation states
   const [isValid, setIsValid] = useState(true);
@@ -102,7 +78,17 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
 
   useEffect(() => {
     fetchConfig();
+    fetchToolCount();
   }, []);
+
+  const fetchToolCount = async () => {
+    try {
+      const count = await getMcpToolCount();
+      setToolCount(count);
+    } catch (error) {
+      console.error("Failed to fetch MCP tool count:", error);
+    }
+  };
 
   const fetchConfig = async () => {
     setLoading(true);
@@ -111,11 +97,7 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
       setRawJson(JSON.stringify(data, null, 2));
     } catch (error) {
       console.error("Failed to fetch MCP config:", error);
-      toaster.create({
-        title: "Error",
-        description: "Failed to load MCP server configuration.",
-        type: "error",
-      });
+      toast.error("Failed to load MCP server configuration.");
       // Fallback to empty default structure
       setRawJson(PLACEHOLDER_JSON);
     } finally {
@@ -150,17 +132,9 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
     try {
       const parsed = JSON.parse(rawJson);
       setRawJson(JSON.stringify(parsed, null, 2));
-      toaster.create({
-        title: "Prettified",
-        description: "JSON formatted successfully.",
-        type: "success",
-      });
+      toast.success("JSON formatted successfully.");
     } catch (err: any) {
-      toaster.create({
-        title: "Format Error",
-        description: err.message || "Invalid JSON, cannot format.",
-        type: "error",
-      });
+      toast.error(err.message || "Invalid JSON, cannot format.");
     }
   };
 
@@ -182,59 +156,111 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
 
     const templates: Record<string, any> = {
       "remote-search": {
-        type: "sse",
+        type: "http",
         server_url: "https://mcp.brave.com/sse",
         auth_header: "Authorization",
         api_key: "Bearer YOUR_API_KEY",
-        version: "1.0",
-        gallery: "",
       },
-      "remote-postgres": {
-        type: "sse",
-        server_url: "https://mcp-sql.yourdomain.com/sse",
-        auth_header: "X-Api-Key",
-        api_key: "YOUR_API_KEY",
-        version: "1.0",
-        gallery: "",
-      },
-      "custom-http": {
-        type: "sse",
-        server_url: "https://api.example.com/mcp",
+
+      "github-mcp": {
+        type: "http",
+        server_url: "https://api.githubcopilot.com/mcp/",
         auth_header: "Authorization",
-        api_key: "",
-        version: "1.0",
-        gallery: "",
+        api_key: "Bearer <API_KEY>",
       },
     };
 
-    currentArr.push(templates[templateName]);
+    const templateToAdd = templates[templateName] || {
+      type: "http",
+      server_url: "https://api.example.com/mcp",
+      auth_header: "Authorization",
+      api_key: "",
+      is_active: false,
+    };
+
+    currentArr.push(templateToAdd);
     setRawJson(JSON.stringify(currentArr, null, 2));
 
-    toaster.create({
-      title: "Template Added",
-      description: `Added ${templateName} server config template.`,
-      type: "info",
-    });
+    toast.info(`Added ${templateName} server config template.`);
+  };
+
+  // Helper to parse safely for visual builder
+  const parsedServers = React.useMemo(() => {
+    if (!isValid || !rawJson.trim()) return [];
+    try {
+      const parsed = JSON.parse(rawJson);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [rawJson, isValid]);
+
+  const updateServerField = (index: number, field: string, value: any) => {
+    try {
+      const updated = [...parsedServers];
+      updated[index] = { ...updated[index], [field]: value };
+      setRawJson(JSON.stringify(updated, null, 2));
+    } catch (e) {
+      toast.error("Failed to update visual configuration.");
+    }
+  };
+
+  const handleToggleActive = async (index: number, checked: boolean) => {
+    try {
+      const updated = [...parsedServers];
+      updated[index] = { ...updated[index], is_active: checked };
+      const newJson = JSON.stringify(updated, null, 2);
+      setRawJson(newJson);
+
+      try {
+        await saveMcpConfig(updated);
+        toast.success(
+          `Server ${checked ? "activated" : "deactivated"} successfully.`,
+        );
+        fetchToolCount();
+      } catch (error: any) {
+        setRawJson(JSON.stringify(parsedServers, null, 2));
+        toast.error("Failed to toggle server state.");
+        onError?.();
+      }
+    } catch (e) {
+      toast.error("Failed to update configuration.");
+    }
+  };
+
+  const updateServerFields = (
+    index: number,
+    updates: Record<string, string>,
+  ) => {
+    try {
+      const updated = [...parsedServers];
+      updated[index] = { ...updated[index], ...updates };
+      setRawJson(JSON.stringify(updated, null, 2));
+    } catch (e) {
+      toast.error("Failed to update visual configuration.");
+    }
+  };
+
+  const removeServer = (index: number) => {
+    try {
+      const updated = parsedServers.filter((_, i) => i !== index);
+      setRawJson(JSON.stringify(updated, null, 2));
+      toast.success("Removed server configuration.");
+    } catch (e) {
+      toast.error("Failed to remove configuration.");
+    }
   };
 
   const handleSave = async () => {
     if (!isValid) {
-      toaster.create({
-        title: "Validation Error",
-        description: "Cannot save invalid JSON configuration.",
-        type: "error",
-      });
+      toast.error("Cannot save invalid JSON configuration.");
       return;
     }
 
     // Optimistic UI: immediately close and show success
     const parsedConfig = rawJson.trim() ? JSON.parse(rawJson) : [];
     onClose();
-    toaster.create({
-      title: "Configuration Saved",
-      description: "MCP Server configuration updated successfully.",
-      type: "success",
-    });
+    toast.success("MCP Server configuration updated successfully.");
 
     // Fire API request in the background
     saveMcpConfig(parsedConfig).catch((error: any) => {
@@ -251,328 +277,458 @@ export const McpConfigDialog = ({ onClose, onError }: Props) => {
       }
       // Signal parent to show red border on the MCP icon
       onError?.();
-      toaster.create({
-        title: "Save Failed",
-        description: errorMsg,
-        type: "error",
-      });
+      toast.error(errorMsg);
     });
   };
 
   return (
-    <Dialog.Root role="alertdialog" open={true} size="lg">
-      <Portal>
-        <Dialog.Backdrop
-          css={{
-            backdropFilter: "blur(8px)",
-            bg: "blackAlpha.600",
-          }}
-        />
-        <Dialog.Positioner>
-          <Dialog.Content
-            css={{
-              bg: "bg.panel",
-              backdropFilter: "blur(24px)",
-              border: "1px solid",
-              borderColor: "border.subtle",
-              borderRadius: "3xl",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-              maxW: "800px",
-              w: "90vw",
-            }}
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-[700px] w-[95vw] p-0 rounded-xl overflow-hidden border-border/50 bg-background/95 backdrop-blur-xl shadow-xl">
+        <DialogHeader className="p-6 pb-2 flex flex-row items-center justify-between space-y-0">
+          <DialogTitle className="text-xl font-semibold tracking-tight flex items-center gap-3">
+            MCP Servers Configuration
+            {toolCount && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
+                {toolCount.active} / {toolCount.total_available} Tools Active
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="p-6 pt-2 text-foreground space-y-4">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
           >
-            <Dialog.Header {...dialogHeader}>
-              <HStack justify="space-between" width="100%">
-                <Dialog.Title
-                  css={{
-                    color: "fg",
-                    fontSize: { base: "lg", md: "2xl" },
-                    fontWeight: "bold",
-                  }}
-                >
-                  MCP Servers Configuration
-                </Dialog.Title>
-                <IconButton
-                  aria-label="Close dialog"
-                  onClick={onClose}
-                  variant="ghost"
-                  borderRadius="full"
-                  _hover={{ bg: "bg.subtle" }}
-                >
-                  <FiX />
-                </IconButton>
-              </HStack>
-            </Dialog.Header>
+            <TabsList className="inline-flex w-full justify-start! border-b border-border/50 bg-transparent p-0 mb-4 h-auto rounded-none">
+              <TabsTrigger
+                value="visual"
+                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:bg-transparent"
+              >
+                <FiEye className="mr-2" /> Visual Builder
+              </TabsTrigger>
+              <TabsTrigger
+                value="edit"
+                className="relative h-10 rounded-none border-b-2 border-transparent bg-transparent px-4 pb-3 pt-2 font-semibold text-muted-foreground shadow-none transition-none data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:bg-transparent"
+              >
+                <FiCode className="mr-2" /> Raw JSON
+              </TabsTrigger>
+            </TabsList>
 
-            <Dialog.Body {...dialogBody}>
-              <VStack gap={4} align="stretch">
-                {/* Custom Tab Switcher */}
-                <Flex
-                  gap={2}
-                  bg="bg.muted"
-                  p={1}
-                  borderRadius="xl"
-                  alignSelf={{ base: "stretch", sm: "flex-start" }}
-                  flexDirection={{ base: "column", sm: "row" }}
-                >
+            <TabsContent value="edit" className="mt-0 outline-none">
+              <div className="flex flex-col gap-3">
+                {/* Textarea Editor */}
+                <div className="relative">
+                  {loading ? (
+                    <div className="flex flex-col p-4 h-[350px] bg-card rounded-xl border border-border gap-4 animate-pulse">
+                      <div className="h-5 bg-muted rounded w-[90%]" />
+                      <div className="h-5 bg-muted rounded w-[70%]" />
+                      <div className="h-5 bg-muted rounded w-[85%]" />
+                    </div>
+                  ) : (
+                    <textarea
+                      value={rawJson}
+                      onChange={(e) => setRawJson(e.target.value)}
+                      disabled={loading}
+                      className={`w-full h-[350px] p-4 rounded-xl bg-black/20 text-foreground font-mono text-sm leading-relaxed outline-none resize-none transition-all duration-200 border ${
+                        isValid ? "border-border" : "border-destructive"
+                      }`}
+                      placeholder={PLACEHOLDER_JSON}
+                    />
+                  )}
+                </div>
+
+                {/* Prettifier and validation warning */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 w-full">
                   <Button
                     size="sm"
-                    variant={activeTab === "edit" ? "solid" : "ghost"}
-                    bg={activeTab === "edit" ? "brand.600" : "transparent"}
-                    color={activeTab === "edit" ? "white" : "fg.muted"}
-                    _hover={{
-                      bg: activeTab === "edit" ? "brand.700" : "bg.subtle",
-                    }}
-                    onClick={() => setActiveTab("edit")}
-                    borderRadius="lg"
+                    variant="outline"
+                    onClick={handleFormatJson}
+                    disabled={loading || !rawJson.trim()}
                   >
-                    <FiCode style={{ marginRight: "6px" }} /> Edit Raw JSON
+                    Format JSON
                   </Button>
-                  <Button
-                    size="sm"
-                    variant={activeTab === "preview" ? "solid" : "ghost"}
-                    bg={activeTab === "preview" ? "brand.600" : "transparent"}
-                    color={activeTab === "preview" ? "white" : "fg.muted"}
-                    _hover={{
-                      bg: activeTab === "preview" ? "brand.700" : "bg.subtle",
-                    }}
-                    onClick={() => setActiveTab("preview")}
-                    borderRadius="lg"
-                  >
-                    <FiEye style={{ marginRight: "6px" }} /> Live Preview
-                  </Button>
-                </Flex>
 
-                {activeTab === "edit" ? (
-                  <VStack align="stretch" gap={3}>
-                    {/* Textarea Editor */}
-                    <Box position="relative">
-                      {loading ? (
-                        <VStack
-                          align="stretch"
-                          p={4}
-                          height="200px"
-                          bg="bg.panel"
-                          borderRadius="md"
-                          borderWidth="1px"
-                          borderColor="border.subtle"
-                        >
-                          <Box
-                            height="20px"
-                            bg="bg.subtle"
-                            borderRadius="sm"
-                            width="90%"
-                            animation="pulse 2s infinite"
-                          />
-                          <Box
-                            height="20px"
-                            bg="bg.subtle"
-                            borderRadius="sm"
-                            width="70%"
-                            animation="pulse 2s infinite"
-                          />
-                          <Box
-                            height="20px"
-                            bg="bg.subtle"
-                            borderRadius="sm"
-                            width="85%"
-                            animation="pulse 2s infinite"
-                          />
-                        </VStack>
-                      ) : (
-                        <textarea
-                          value={rawJson}
-                          onChange={(e) => setRawJson(e.target.value)}
-                          disabled={loading}
-                          style={getTextareaStyle(isValid)}
-                          placeholder={PLACEHOLDER_JSON}
-                        />
-                      )}
-                    </Box>
-
-                    {/* Prettifier and validation warning */}
-                    <Flex
-                      direction={{ base: "column", sm: "row" }}
-                      justify="space-between"
-                      align={{ base: "flex-start", sm: "center" }}
-                      gap={3}
-                      width="100%"
-                    >
-                      <HStack gap={2}>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          borderColor="border.subtle"
-                          _hover={{ bg: "bg.subtle" }}
-                          onClick={handleFormatJson}
-                          disabled={loading || !rawJson.trim()}
-                        >
-                          Format JSON
-                        </Button>
-                      </HStack>
-
-                      {/* Validation Status Indicator */}
-                      <HStack gap={1.5}>
-                        {isValid ? (
-                          <>
-                            <FiCheck
-                              color="var(--chakra-colors-green-500)"
-                              size={14}
-                            />
-                            <Text
-                              fontSize="xs"
-                              color="green.500"
-                              fontWeight="medium"
-                            >
-                              Valid JSON
-                            </Text>
-                          </>
-                        ) : (
-                          <>
-                            <FiAlertTriangle
-                              color="var(--chakra-colors-red-500)"
-                              size={14}
-                            />
-                            <Text
-                              fontSize="xs"
-                              color="red.500"
-                              fontWeight="medium"
-                              maxW="300px"
-                              truncate
-                              title={validationError}
-                            >
-                              {validationError}
-                            </Text>
-                          </>
-                        )}
-                      </HStack>
-                    </Flex>
-
-                    <Separator borderColor="border.subtle" my={1} />
-
-                    {/* Templates Helper Bar */}
-                    <VStack align="stretch" gap={2}>
-                      <Text
-                        fontSize="xs"
-                        fontWeight="semibold"
-                        color="fg.muted"
-                      >
-                        Quick Add Server Templates:
-                      </Text>
-                      <HStack gap={2} flexWrap="wrap">
-                        {[
-                          "remote-search",
-                          "remote-postgres",
-                          "custom-http",
-                        ].map((t) => (
-                          <Button
-                            key={t}
-                            size="xs"
-                            variant="surface"
-                            bg="bg.muted"
-                            borderColor="border.subtle"
-                            _hover={{ bg: "brand.600", color: "white" }}
-                            onClick={() => handleAddTemplate(t)}
-                            borderRadius="lg"
-                          >
-                            + {t}
-                          </Button>
-                        ))}
-                      </HStack>
-                    </VStack>
-                  </VStack>
-                ) : (
-                  /* Preview Tab using Chakra CodeBlock & Shiki Adapter */
-                  <Box
-                    height={{ base: "250px", md: "350px" }}
-                    overflowY="auto"
-                    borderRadius="12px"
-                    border="1px solid"
-                    borderColor="border.subtle"
-                    bg="rgba(0, 0, 0, 0.3)"
-                    p={4}
-                  >
-                    {rawJson.trim() ? (
-                      <CodeBlockAdapterProvider value={shikiAdapter}>
-                        <CodeBlock.Root
-                          code={rawJson}
-                          language="json"
-                          size="sm"
-                        >
-                          <CodeBlock.Content p={0}>
-                            <CodeBlock.Code
-                              p={0}
-                              bg="transparent"
-                              border="none"
-                            >
-                              <CodeBlock.CodeText />
-                            </CodeBlock.Code>
-                          </CodeBlock.Content>
-                        </CodeBlock.Root>
-                      </CodeBlockAdapterProvider>
+                  {/* Validation Status Indicator */}
+                  <div className="flex items-center gap-1.5">
+                    {isValid ? (
+                      <>
+                        <FiCheck className="text-green-500" size={14} />
+                        <span className="text-xs text-green-500 font-medium">
+                          Valid JSON
+                        </span>
+                      </>
                     ) : (
-                      <CodeBlockAdapterProvider value={shikiAdapter}>
-                        <CodeBlock.Root
-                          code={PLACEHOLDER_JSON}
-                          language="json"
-                          size="sm"
+                      <>
+                        <FiAlertTriangle className="text-red-500" size={14} />
+                        <span
+                          className="text-xs text-red-500 font-medium max-w-[300px] truncate"
+                          title={validationError}
                         >
-                          <CodeBlock.Content p={0}>
-                            <CodeBlock.Code
-                              p={0}
-                              bg="transparent"
-                              border="none"
-                            >
-                              <CodeBlock.CodeText />
-                            </CodeBlock.Code>
-                          </CodeBlock.Content>
-                        </CodeBlock.Root>
-                      </CodeBlockAdapterProvider>
+                          {validationError}
+                        </span>
+                      </>
                     )}
-                  </Box>
+                  </div>
+                </div>
+
+                <div className="h-px bg-border my-1" />
+
+                {/* Templates Helper Bar */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    Quick Add Server Templates:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {["remote-search", "remote-postgres", "custom-http"].map(
+                      (t) => (
+                        <Button
+                          key={t}
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleAddTemplate(t)}
+                          className="rounded-lg h-7 px-3 text-xs"
+                        >
+                          <Plus className="w-3 h-3 mr-1" /> {t}
+                        </Button>
+                      ),
+                    )}
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="visual" className="mt-0 outline-none">
+              <ScrollArea className="h-[450px] pr-4 bg-background">
+                {!isValid ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
+                    <FiAlertTriangle className="w-8 h-8 text-destructive" />
+                    <p>Cannot render Visual Builder.</p>
+                    <p className="text-xs">
+                      Your JSON configuration is invalid.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActiveTab("edit")}
+                      className="mt-2"
+                    >
+                      Fix in Raw JSON
+                    </Button>
+                  </div>
+                ) : parsedServers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-4 py-12">
+                    <Server className="w-12 h-12 text-muted" />
+                    <p>No MCP Servers configured.</p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleAddTemplate("remote-search")}
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> Add Remote Search
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleAddTemplate("github-mcp")}
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> Add GitHub MCP
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Accordion
+                    type="multiple"
+                    className="w-full"
+                    defaultValue={parsedServers.map((_, i) => `item-${i}`)}
+                  >
+                    {parsedServers.map((server, index) => (
+                      <AccordionItem
+                        key={index}
+                        value={`item-${index}`}
+                        className="border border-border/50 bg-black/10 rounded-xl px-5 mb-4 shadow-sm overflow-hidden transition-all duration-200"
+                      >
+                        <div className="flex items-center justify-between">
+                          <AccordionTrigger className="hover:no-underline flex-1 py-5">
+                            <div className="flex items-center gap-4 text-left">
+                              <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                                <Server className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h3 className="font-mono font-semibold text-sm text-foreground">
+                                  {server.server_url || "Unnamed Server"}
+                                </h3>
+                                <p className="text-xs text-primary/80 font-mono uppercase tracking-widest mt-1">
+                                  {server.type === "http"
+                                    ? "HTTP (POST)"
+                                    : server.type === "sse"
+                                      ? "SSE (GET)"
+                                      : server.type || "http"}
+                                </p>
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+                          <div className="flex items-center gap-3 pr-2">
+                            <div
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border ${server.is_active === true ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-muted/50 text-muted-foreground border-border/50"}`}
+                            >
+                              <Power className="w-3 h-3" />
+                              {server.is_active === true
+                                ? "Active"
+                                : "Inactive"}
+                            </div>
+                            <Switch
+                              className="data-[state=checked]:bg-green-500"
+                              checked={server.is_active === true}
+                              onCheckedChange={(checked) =>
+                                handleToggleActive(index, checked)
+                              }
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full w-9 h-9 z-10 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeServer(index);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <AccordionContent className="pb-6 pt-2">
+                          <div className="flex flex-col gap-6">
+                            {/* Transport and URL Fields */}
+                            <div className="grid grid-cols-12 gap-4">
+                              <div className="col-span-12 md:col-span-3 space-y-1">
+                                <Label className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                                  TRANSPORT
+                                </Label>
+                                <Select
+                                  value={server.type || "http"}
+                                  onValueChange={(value) =>
+                                    updateServerField(index, "type", value)
+                                  }
+                                >
+                                  <SelectTrigger className="h-10 text-sm bg-background border border-border focus-visible:ring-primary/50 font-mono transition-all w-full rounded-md px-3">
+                                    <SelectValue placeholder="Transport" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem
+                                      value="http"
+                                      className="font-mono text-sm"
+                                    >
+                                      HTTP (POST)
+                                    </SelectItem>
+                                    <SelectItem
+                                      value="sse"
+                                      className="font-mono text-sm"
+                                    >
+                                      SSE (GET)
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-[11px] text-muted-foreground font-medium pl-1">
+                                  Protocol Type
+                                </p>
+                              </div>
+                              <div className="col-span-12 md:col-span-9 space-y-1">
+                                <Label className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                                  URL
+                                </Label>
+                                <Input
+                                  value={server.server_url || ""}
+                                  onChange={(e) =>
+                                    updateServerField(
+                                      index,
+                                      "server_url",
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="https://example.com/mcp"
+                                  className="h-10 text-sm bg-background border-border focus-visible:ring-primary/50 font-mono transition-all w-full"
+                                />
+                                <p className="text-[11px] text-muted-foreground font-medium pl-1">
+                                  The fully qualified endpoint URL for the
+                                  server.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Auth Settings */}
+                            {(() => {
+                              const isBearer =
+                                server.auth_header?.toLowerCase() ===
+                                  "authorization" &&
+                                server.api_key
+                                  ?.toLowerCase()
+                                  .startsWith("bearer ");
+                              const displayToken = isBearer
+                                ? server.api_key.substring(7)
+                                : server.api_key || "";
+
+                              return (
+                                <div className="grid grid-cols-12 gap-4">
+                                  {/* Auth Type Dropdown */}
+                                  <div className="col-span-12 md:col-span-3 space-y-1">
+                                    <Label className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                                      AUTH TYPE
+                                    </Label>
+                                    <Select
+                                      value={isBearer ? "bearer" : "custom"}
+                                      onValueChange={(value) => {
+                                        if (value === "bearer") {
+                                          updateServerFields(index, {
+                                            auth_header: "Authorization",
+                                            api_key: "Bearer " + displayToken,
+                                          });
+                                        } else {
+                                          updateServerFields(index, {
+                                            api_key: displayToken,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-10 text-sm bg-background border border-border focus-visible:ring-primary/50 font-mono transition-all w-full rounded-md px-3">
+                                        <SelectValue placeholder="Auth Type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem
+                                          value="bearer"
+                                          className="font-mono text-sm"
+                                        >
+                                          Bearer Token
+                                        </SelectItem>
+                                        <SelectItem
+                                          value="custom"
+                                          className="font-mono text-sm"
+                                        >
+                                          Custom Header
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-[11px] text-muted-foreground font-medium pl-1">
+                                      Strategy
+                                    </p>
+                                  </div>
+
+                                  {isBearer ? (
+                                    // Bearer Token Mode (Hide Header Input)
+                                    <div className="col-span-12 md:col-span-9 space-y-1">
+                                      <Label className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                                        TOKEN
+                                      </Label>
+                                      <Input
+                                        value={displayToken}
+                                        onChange={(e) =>
+                                          updateServerField(
+                                            index,
+                                            "api_key",
+                                            "Bearer " + e.target.value,
+                                          )
+                                        }
+                                        placeholder="YOUR_TOKEN"
+                                        type="password"
+                                        className="h-10 text-sm bg-background border-border focus-visible:ring-primary/50 font-mono transition-all"
+                                      />
+                                      <p className="text-[11px] text-muted-foreground font-medium pl-1">
+                                        "Bearer" prefix is added automatically.
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    // Custom Header Mode
+                                    <>
+                                      <div className="col-span-12 md:col-span-4 space-y-1">
+                                        <Label className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                                          HEADER NAME
+                                        </Label>
+                                        <Input
+                                          value={server.auth_header || ""}
+                                          onChange={(e) =>
+                                            updateServerField(
+                                              index,
+                                              "auth_header",
+                                              e.target.value,
+                                            )
+                                          }
+                                          placeholder="x-api-key"
+                                          className="h-10 text-sm bg-background border-border focus-visible:ring-primary/50 font-mono transition-all"
+                                        />
+                                        <p className="text-[11px] text-muted-foreground font-medium pl-1">
+                                          E.g., Authorization
+                                        </p>
+                                      </div>
+                                      <div className="col-span-12 md:col-span-5 space-y-1">
+                                        <Label className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                                          HEADER VALUE
+                                        </Label>
+                                        <Input
+                                          value={server.api_key || ""}
+                                          onChange={(e) =>
+                                            updateServerField(
+                                              index,
+                                              "api_key",
+                                              e.target.value,
+                                            )
+                                          }
+                                          placeholder="Token value..."
+                                          type="password"
+                                          className="h-10 text-sm bg-background border-border focus-visible:ring-primary/50 font-mono transition-all"
+                                        />
+                                        <p className="text-[11px] text-muted-foreground font-medium pl-1">
+                                          Exact value passed.
+                                        </p>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
                 )}
-              </VStack>
-            </Dialog.Body>
+              </ScrollArea>
+              {isValid && parsedServers.length > 0 && (
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddTemplate("custom-http")}
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Add Server
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
 
-            <Dialog.Footer
-              {...dialogFooter}
-              flexDirection={{ base: "column", sm: "row" }}
-              flexWrap="wrap"
-            >
-              <Button
-                w={{ base: "full", sm: "auto" }}
-                variant="ghost"
-                color="fg"
-                borderRadius="xl"
-                _hover={{ bg: "bg.subtle" }}
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-
-              <Button
-                w={{ base: "full", sm: "auto" }}
-                bg="brand.600"
-                color="white"
-                borderRadius="xl"
-                _hover={{
-                  bg: "brand.700",
-                  transform: "translateY(-1px)",
-                }}
-                _active={{
-                  transform: "translateY(0)",
-                }}
-                onClick={handleSave}
-                disabled={!isValid || loading || saving}
-                loading={saving}
-                loadingText="Saving..."
-              >
-                <FiSave style={{ marginRight: "6px" }} /> Save Config
-              </Button>
-            </Dialog.Footer>
-          </Dialog.Content>
-        </Dialog.Positioner>
-      </Portal>
-    </Dialog.Root>
+        <DialogFooter className="p-6 pt-4 flex flex-col sm:flex-row gap-3">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="w-full sm:w-auto"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!isValid || loading || saving}
+            className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <FiSave className="mr-2" /> {saving ? "Saving..." : "Save Config"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
+
+export default McpConfigDialog;

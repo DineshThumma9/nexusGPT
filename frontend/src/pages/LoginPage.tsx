@@ -1,9 +1,8 @@
-import { Flex, Box } from "@chakra-ui/react";
-import { toaster } from "../components/ui/toaster.tsx";
+import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth.ts";
 import { useNavigate } from "react-router-dom";
-import { Fade } from "@chakra-ui/transition";
+import { motion, AnimatePresence } from "framer-motion";
 import { z } from "zod";
 import useFieldForm from "../hooks/useFieldForm.ts";
 import InputField from "../components/InputField.tsx";
@@ -31,7 +30,8 @@ const LoginPage = () => {
 
   useEffect(() => {
     logout();
-  }, [logout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async () => {
     const values = {
@@ -61,12 +61,7 @@ const LoginPage = () => {
 
     try {
       await login(values.username, values.password);
-      toaster.create({
-        title: "Success",
-        description: "Login successful!",
-        type: "success",
-        duration: 3000,
-      });
+      toast.success("Login successful!");
       setUsername(values.username);
       setFadeOut(true);
       setTimeout(() => navigate("/app"), 300);
@@ -83,100 +78,66 @@ const LoginPage = () => {
         password.incrementShakey();
       }, 50);
 
-      toaster.create({
-        title: "Login Failed",
-        description: "Please check your credentials and try again.",
-        type: "error",
-        duration: 3000,
-      });
+      toast.error("Login Failed: Please check your credentials and try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <Box minH="100vh" w="full" position="relative" bg="bg.canvas">
+    <div className="min-h-screen w-full relative bg-background overflow-hidden">
       {/* Animated Mesh Gradient Background */}
-      <Box
-        position="absolute"
-        inset={0}
-        zIndex={0}
-        overflow="hidden"
-        bg="bg.canvas"
-        _before={{
-          content: '""',
-          position: "absolute",
-          top: "-50%",
-          left: "-50%",
-          width: "200%",
-          height: "200%",
-          background: {
-            base: "radial-gradient(circle at 50% 50%, token(colors.brand.100) 0%, transparent 50%), radial-gradient(circle at 80% 20%, token(colors.emerald.100) 0%, transparent 50%), radial-gradient(circle at 20% 80%, token(colors.brand.50) 0%, transparent 50%)",
-            _dark:
-              "radial-gradient(circle at 50% 50%, token(colors.brand.950) 0%, transparent 50%), radial-gradient(circle at 80% 20%, token(colors.emerald.900) 0%, transparent 50%), radial-gradient(circle at 20% 80%, token(colors.brand.900) 0%, transparent 50%)",
-          },
-          animation: "rotate 20s linear infinite",
-        }}
-        css={{
-          "@keyframes rotate": {
-            from: { transform: "rotate(0deg)" },
-            to: { transform: "rotate(360deg)" },
-          },
-        }}
-      />
+      <div className="mesh-bg-container" />
 
-      <Flex
-        minH="100vh"
-        align="center"
-        justify="center"
-        p={{ base: 4, md: 8 }}
-        position="relative"
-        zIndex={1}
-      >
+      <div className="min-h-screen flex items-center justify-center p-4 md:p-8 relative z-10">
         {/* Theme Toggle - positioned in top right */}
-        <Box position="absolute" top="20px" right="20px" zIndex={1000}>
+        <div className="absolute top-5 right-5 z-[1000]">
           <ColorModeToggle />
-        </Box>
+        </div>
 
-        <Fade
-          in={!fadeOut}
-          unmountOnExit
-          transition={{ exit: { duration: 0.3 } }}
-        >
-          <CrediantialCard
-            heading={"Login"}
-            login_register={"Login"}
-            message={"Don't have an account? Sign Up"}
-            isLoading={isLoading}
-            onSubmit={onSubmit}
-            altlink={"/signup"}
-          >
-            <InputField
-              label="Username"
-              placeholder="Enter Your Username"
-              value={username.value}
-              onChange={username.onChange}
-              onBlur={username.onBlur}
-              error={username.error ?? ""}
-              touched={username.touched}
-              shakey={username.shakey}
-            />
+        <AnimatePresence>
+          {!fadeOut && (
+            <motion.div
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CrediantialCard
+                heading={"Login"}
+                login_register={"Login"}
+                message={"Don't have an account? Sign Up"}
+                isLoading={isLoading}
+                onSubmit={onSubmit}
+                altlink={"/signup"}
+              >
+                <InputField
+                  label="Username"
+                  placeholder="Enter Your Username"
+                  value={username.value}
+                  onChange={username.onChange}
+                  onBlur={username.onBlur}
+                  error={username.error ?? ""}
+                  touched={username.touched}
+                  shakey={username.shakey}
+                />
 
-            <InputField
-              label="Password"
-              placeholder="Enter Your Password"
-              value={password.value}
-              onChange={password.onChange}
-              onBlur={password.onBlur}
-              error={password.error ?? ""}
-              touched={password.touched}
-              shakey={password.shakey}
-              type="password"
-            />
-          </CrediantialCard>
-        </Fade>
-      </Flex>
-    </Box>
+                <InputField
+                  label="Password"
+                  placeholder="Enter Your Password"
+                  value={password.value}
+                  onChange={password.onChange}
+                  onBlur={password.onBlur}
+                  error={password.error ?? ""}
+                  touched={password.touched}
+                  shakey={password.shakey}
+                  type="password"
+                />
+              </CrediantialCard>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 };
 

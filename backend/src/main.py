@@ -12,26 +12,26 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.requests import Request
 
-from src.config.settings import settings
-from src.db import dbs
-from src.db.dbs import (
+from .config.settings import settings
+from .db import dbs
+from .db.dbs import (
     _init_db,
     close_checkpointer,
     create_all_tables,
     init_checkpointer,
 )
-from src.db.neo4j import close_graph, init_graph
-from src.db.qdrant_client import init_qdrant
-from src.db.redis_client import close_redis, init_redis
-from src.router import (
+from .db.graphdb import close_graph, init_graph
+from .db.redisdb import close_redis, init_redis
+from .db.vectordb import init_qdrant
+from .router import (
     auth_router,
     basic_router,
     message_router,
     rag_router,
     session_router,
 )
-from src.router.limiter import limiter
-from src.router.setup import close_http_client
+from .router.limiter import limiter
+from .router.setup import close_http_client
 
 # ---------------------------------------------------------
 # 1. Configuration & Global Setup

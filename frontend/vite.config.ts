@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@": path.resolve(__dirname, "./src"),
       fs: path.resolve(__dirname, 'src/shims/fs.js')
     }
   }

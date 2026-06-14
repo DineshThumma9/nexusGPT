@@ -1,17 +1,15 @@
 // src/components/MenuHelper.tsx
-import {
-  Button,
-  Menu,
-  MenuPositioner,
-  Portal,
-  Input,
-  VStack,
-  Text,
-  Separator,
-} from "@chakra-ui/react";
-import { MenuTrigger } from "./ui/menu.tsx";
+import { useState, useRef, useEffect } from "react";
 import { ChevronDownIcon } from "lucide-react";
-import { useRef, useEffect, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "./ui/dropdown-menu";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 interface Props {
   title: string;
@@ -36,6 +34,7 @@ const MenuHelper = ({
 }: Props) => {
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [manualInput, setManualInput] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -45,9 +44,11 @@ const MenuHelper = ({
     };
   }, []);
 
-  const handleItemClick = (option: string) => {
+  const handleItemClick = (e: React.MouseEvent, option: string) => {
+    e.preventDefault();
     if (!onDoubleClick) {
       onSelect(option);
+      setIsOpen(false);
       return;
     }
 
@@ -55,9 +56,11 @@ const MenuHelper = ({
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
       onDoubleClick(option);
+      setIsOpen(false);
     } else {
       clickTimeoutRef.current = setTimeout(() => {
         onSelect(option);
+        setIsOpen(false);
         clickTimeoutRef.current = null;
       }, 300);
     }
@@ -67,6 +70,7 @@ const MenuHelper = ({
     if (manualInput.trim()) {
       onSelect(manualInput.trim());
       setManualInput("");
+      setIsOpen(false);
     }
   };
 
@@ -77,94 +81,70 @@ const MenuHelper = ({
     : title;
 
   return (
-    <Menu.Root>
-      <MenuTrigger asChild>
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      <DropdownMenuTrigger asChild>
         <Button
-          css={{ menuHelper: {} }}
+          variant="outline"
           disabled={disabled}
-          size={{ base: "xs", md: "sm" }}
-          fontSize={{ base: "11px", md: "sm" }}
-          px={{ base: 2, md: 3 }}
-          h={{ base: "28px", md: "32px" }}
+          className="h-8 md:h-9 text-[11px] md:text-sm px-2 md:px-3 rounded-xl border-border bg-background/50 backdrop-blur-md text-foreground hover:bg-muted"
         >
           {displaySelected.length > 25
             ? displaySelected.slice(0, 25) + "..."
             : displaySelected}
-          <ChevronDownIcon style={{ width: "14px", height: "14px" }} />
+          <ChevronDownIcon className="ml-1 h-3.5 w-3.5 md:h-4 md:w-4" />
         </Button>
-      </MenuTrigger>
+      </DropdownMenuTrigger>
 
-      <Portal>
-        <MenuPositioner>
-          <Menu.Content
-            bg="bg.surface"
-            borderColor="border.default"
-            boxShadow="0 4px 12px rgba(0, 0, 0, 0.1)"
-            maxH="400px"
-            overflowY="auto"
-          >
-            {allowManualInput && (
-              <>
-                <VStack p={3} gap={2}>
-                  <Text fontSize="sm" color="fg.muted">
-                    Enter custom model name:
-                  </Text>
-                  <Input
-                    placeholder="e.g., gpt-4-custom"
-                    value={manualInput}
-                    onChange={(e) => setManualInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleManualInputSubmit();
-                      }
-                    }}
-                    size="sm"
-                    bg="bg.canvas"
-                    borderColor="border.default"
-                    _focus={{
-                      borderColor: "border.accent",
-                      boxShadow: `0 0 0 1px token(colors.border.accent)`,
-                    }}
-                  />
-                  <Button
-                    size="xs"
-                    variant="solid"
-                    colorPalette="brand"
-                    onClick={handleManualInputSubmit}
-                    disabled={!manualInput.trim()}
-                    w="full"
-                  >
-                    Use Custom Model
-                  </Button>
-                </VStack>
-                <Separator />
-              </>
-            )}
-            {options.map((option) => (
-              <Menu.Item
-                value={option}
-                key={option}
-                color="fg.default"
-                _hover={{
-                  bg: { base: "brand.50", _dark: "brand.950" },
-                  color: { base: "brand.800", _dark: "white" },
-                }}
-                onClick={() => handleItemClick(option)}
-                cursor={onDoubleClick ? "pointer" : "default"}
-                title={
-                  onDoubleClick
-                    ? "Double-click to view documentation"
-                    : undefined
+      <DropdownMenuContent
+        align="start"
+        className="w-auto min-w-32 p-1.5 max-h-[400px] overflow-y-auto bg-background/90 backdrop-blur-xl border-border rounded-xl shadow-lg"
+      >
+        {allowManualInput && (
+          <div className="flex flex-col gap-2 p-3">
+            <span className="text-sm text-muted-foreground">
+              Enter custom model name:
+            </span>
+            <Input
+              placeholder="e.g., gpt-4-custom"
+              value={manualInput}
+              onChange={(e) => setManualInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleManualInputSubmit();
                 }
-                transition="all 0.2s ease"
-              >
-                {formatOption ? formatOption(option) : option}
-              </Menu.Item>
-            ))}
-          </Menu.Content>
-        </MenuPositioner>
-      </Portal>
-    </Menu.Root>
+              }}
+              className="h-8 text-sm bg-background/50 border-border"
+            />
+            <Button
+              size="sm"
+              onClick={handleManualInputSubmit}
+              disabled={!manualInput.trim()}
+              className="w-full h-8"
+            >
+              Use Custom Model
+            </Button>
+            <DropdownMenuSeparator />
+          </div>
+        )}
+
+        {options.map((option) => (
+          <DropdownMenuItem
+            key={option}
+            onSelect={(e) => {
+              // Prevent default to handle custom double click logic
+              e.preventDefault();
+            }}
+            onClick={(e) => handleItemClick(e, option)}
+            title={
+              onDoubleClick ? "Double-click to view documentation" : undefined
+            }
+            className="cursor-pointer hover:bg-muted focus:bg-muted rounded-lg mx-1"
+          >
+            {formatOption ? formatOption(option) : option}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

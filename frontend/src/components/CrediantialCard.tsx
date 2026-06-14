@@ -1,13 +1,12 @@
-import {
-  Card,
-  CardBody,
-  CardFooter,
-  CardHeader,
-  Heading,
-  Stack,
-} from "@chakra-ui/react";
 import { type ReactNode } from "react";
 import NavGateButton from "./NavGateButton.tsx";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
 
 interface Props {
   heading: string;
@@ -29,37 +28,11 @@ const CrediantialCard = ({
   altlink,
 }: Props) => {
   return (
-    <Card.Root
-      w="400px"
-      maxW="95vw"
-      bg="glass.bg"
-      backdropFilter="blur(20px)"
-      border="1px solid"
-      borderColor="glass.border"
-      boxShadow="0 8px 32px 0 rgba(0, 0, 0, 0.1)"
-      borderRadius="2xl"
-      zIndex={10}
-      p={6}
-      color="fg.default"
-      transition="transform 0.3s ease, box-shadow 0.3s ease"
-      _hover={{
-        transform: "translateY(-4px)",
-        boxShadow: "0 12px 48px 0 rgba(0, 0, 0, 0.15)",
-      }}
-    >
+    <Card className="w-[400px] max-w-[95vw] bg-card border border-border shadow-sm rounded-2xl z-10 p-6 text-foreground">
       <CardHeader>
-        <Heading
-          as="h1"
-          size="lg"
-          textAlign="center"
-          color="fg.default"
-          fontWeight="600"
-          fontSize="xl"
-          fontFamily="heading"
-          mb={2}
-        >
+        <CardTitle className="text-center text-foreground font-semibold text-xl mb-2">
           {heading}
-        </Heading>
+        </CardTitle>
       </CardHeader>
 
       <form
@@ -68,11 +41,11 @@ const CrediantialCard = ({
           onSubmit();
         }}
       >
-        <CardBody>
-          <Stack gap={4}>{children}</Stack>
-        </CardBody>
+        <CardContent>
+          <div className="flex flex-col gap-4">{children}</div>
+        </CardContent>
 
-        <CardFooter justifyContent="center" w="100%">
+        <CardFooter className="flex justify-center w-full">
           <NavGateButton
             login_register={login_register}
             message={message}
@@ -82,7 +55,7 @@ const CrediantialCard = ({
           />
         </CardFooter>
       </form>
-    </Card.Root>
+    </Card>
   );
 };
 

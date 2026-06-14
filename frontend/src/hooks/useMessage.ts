@@ -4,7 +4,7 @@ import useSessionStore from "../store/sessionStore.ts";
 import { z } from "zod/v4";
 import { useEffect, useRef } from "react";
 import useSessions from "./useSessions.ts";
-import { toaster } from "../components/ui/toaster";
+import { toast } from "sonner";
 
 const docSchema = z.object({
   doc_id: z.string().uuid(),
@@ -71,6 +71,7 @@ const useMessage = () => {
     updateMessage,
     context,
     files,
+    mcpEnabled,
   } = store;
 
   async function streamMessage(userMsg: string): Promise<void> {
@@ -93,6 +94,7 @@ const useMessage = () => {
       content: "",
       sender: "assistant",
       timestamp: new Date().toISOString(),
+      isStreaming: true,
     });
 
     setStreaming(true);
@@ -127,6 +129,7 @@ const useMessage = () => {
           msg: userMsg,
           isFirst: isFirst,
           files: displayCurrentFiles,
+          mcp_enabled: mcpEnabled,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -169,10 +172,8 @@ const useMessage = () => {
         }
 
         if ([422, 429, 413, 402].includes(status)) {
-          toaster.create({
-            title,
+          toast.error(title, {
             description: message,
-            type: "error",
             duration: 5000,
           });
         }
@@ -287,11 +288,9 @@ const useMessage = () => {
                     ) {
                       errorBubbleMessage =
                         "Rate limit exceeded. Please wait a moment before sending another message.";
-                      toaster.create({
-                        title: "Too Many Requests",
+                      toast.error("Too Many Requests", {
                         description:
                           "You have exceeded your AI provider's rate limit or quota.",
-                        type: "error",
                         duration: 5000,
                       });
                     } else if (
@@ -301,10 +300,8 @@ const useMessage = () => {
                     ) {
                       errorBubbleMessage =
                         "Authentication failed with the AI provider. Please check your API keys.";
-                      toaster.create({
-                        title: "Authentication Failed",
+                      toast.error("Authentication Failed", {
                         description: "Please check your AI provider API keys.",
-                        type: "error",
                         duration: 5000,
                       });
                     } else if (
@@ -313,11 +310,9 @@ const useMessage = () => {
                     ) {
                       errorBubbleMessage =
                         "Payment is required by the AI provider. You may have exceeded your quota or need to update your billing details.";
-                      toaster.create({
-                        title: "Payment Required",
+                      toast.error("Payment Required", {
                         description:
                           "You have exceeded your quota or need to update your payment details.",
-                        type: "error",
                         duration: 5000,
                       });
                     } else if (
@@ -326,10 +321,8 @@ const useMessage = () => {
                     ) {
                       errorBubbleMessage =
                         "The request or attachment was too large for the AI provider to process.";
-                      toaster.create({
-                        title: "Payload Too Large",
+                      toast.error("Payload Too Large", {
                         description: "The request or attachment was too large.",
-                        type: "error",
                         duration: 5000,
                       });
                     } else if (
@@ -340,20 +333,16 @@ const useMessage = () => {
                     ) {
                       errorBubbleMessage =
                         "The selected model does not support the required features (such as tool calling). Please select a different model.";
-                      toaster.create({
-                        title: "Model Not Supported",
+                      toast.error("Model Not Supported", {
                         description: "Please select a different AI model.",
-                        type: "error",
                         duration: 5000,
                       });
                     } else {
                       // Fallback for other errors, try to keep it somewhat clean
                       errorBubbleMessage = `[Error: ${errorStr.substring(0, 150)}${errorStr.length > 150 ? "..." : ""}]`;
-                      toaster.create({
-                        title: "Streaming Error",
+                      toast.error("Streaming Error", {
                         description:
                           "The AI provider encountered an error while generating the response.",
-                        type: "error",
                         duration: 5000,
                       });
                     }

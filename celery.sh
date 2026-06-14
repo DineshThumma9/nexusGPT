@@ -3,4 +3,4 @@
 echo "Starting Celery worker"
 cd backend
 set -a && source .env.dev && set +a
-uv run celery -A src.service.tasks.queue worker --loglevel=info
+uv run celery -A src.service.background.worker.queue worker --loglevel=info

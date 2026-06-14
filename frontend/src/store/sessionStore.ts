@@ -23,6 +23,7 @@ export type SessionState = {
   sessionNextCursor: string | null;
   sessionHasMore: boolean;
   isFetchingMore: boolean;
+  mcpEnabled: boolean;
 
   setCurrentSessionId: (session: string | null) => void;
   setMessages: (messages: Message[]) => void;
@@ -45,6 +46,7 @@ export type SessionState = {
   setShouldStream: (streaming: boolean) => void;
   setSessionPagination: (nextCursor: string | null, hasMore: boolean) => void;
   setFetchingMore: (fetching: boolean) => void;
+  setMcpEnabled: (enabled: boolean) => void;
   clear: () => void;
   clearFiles: () => void;
   clearFileInput: () => void;
@@ -87,6 +89,7 @@ const useSessionStore = create<SessionState>()(
       sessionNextCursor: null,
       sessionHasMore: true,
       isFetchingMore: false,
+      mcpEnabled: true,
 
       setCurrentSessionId: (session) =>
         set({
@@ -195,6 +198,7 @@ const useSessionStore = create<SessionState>()(
         set({ sessionNextCursor: nextCursor, sessionHasMore: hasMore }),
 
       setFetchingMore: (fetching) => set({ isFetchingMore: fetching }),
+      setMcpEnabled: (enabled) => set({ mcpEnabled: enabled }),
 
       clearAllSessions: () =>
         set({

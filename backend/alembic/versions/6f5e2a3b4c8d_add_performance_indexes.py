@@ -24,31 +24,31 @@ def upgrade() -> None:
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_session_user_id 
         ON sessions(user_id);
     """)
-    
+
     # Index on message.session_id (used in history/context queries)
     op.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_message_session_id 
         ON messages(session_id);
     """)
-    
+
     # Index on apikeys(user_id, provider) for API key lookups
     op.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_apikeys_user_provider 
         ON api_keys(user_id, provider);
     """)
-    
+
     # Index on refreshtoken.token for token validation
     op.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_refresh_token_token 
         ON refresh_token(token);
     """)
-    
+
     # Index on user.username for username lookups
     op.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_username 
         ON users(username);
     """)
-    
+
     # Index on mcp_config.user_id for user config lookups
     op.execute("""
         CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_mcp_config_user_id 

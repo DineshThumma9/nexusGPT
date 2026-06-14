@@ -1,11 +1,10 @@
-import { Box, Toaster } from "@chakra-ui/react";
 import { Outlet } from "react-router-dom";
 
 const Layout = () => {
   return (
-    <Box>
+    <main>
       <Outlet />
-    </Box>
+    </main>
   );
 };
 

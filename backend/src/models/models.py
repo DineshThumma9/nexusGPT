@@ -16,7 +16,7 @@ from src.models.enums import KBSourceType, KBStatus, SenderRole
 class User(SQLModel, table=True):
     __tablename__ = "users"
     userid: UUID = Field(default_factory=uuid4, primary_key=True)
-    username: str = Field(index=True)
+    username: str = Field(index=True, unique=True)
     email: EmailStr = Field(index=True, unique=True)
     hpassword: str
     created_at: datetime = Field(sa_column_kwargs={"server_default": func.now()})
@@ -31,7 +31,10 @@ class User(SQLModel, table=True):
 
 class Session(SQLModel, table=True):
     __tablename__ = "sessions"
-    session_id: UUID = Field(default_factory=uuid4, primary_key=True,)
+    session_id: UUID = Field(
+        default_factory=uuid4,
+        primary_key=True,
+    )
     user_id: UUID = Field(foreign_key="users.userid", ondelete="CASCADE", index=True)
     kb_id: Optional[UUID] = Field(
         default=None,
@@ -119,3 +122,4 @@ class UserMCPConfig(SQLModel, table=True):
     gallery: Optional[str] = None
     version: Optional[str] = None
     api_key: Optional[str] = None
+    is_active: bool = Field(default=False)

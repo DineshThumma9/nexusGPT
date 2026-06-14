@@ -41,7 +41,7 @@ services:
       - neo4j
     volumes:
       - .:/app
-    command: celery -A src.service.tasks.queue worker --loglevel=info --concurrency=2
+    command: celery -A src.service.background.worker.queue worker --loglevel=info --concurrency=2
 
   qdrantdb:
     image: qdrant/qdrant

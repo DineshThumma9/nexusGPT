@@ -7,13 +7,8 @@ import useSessions from "./useSessions.ts";
 import useSessionStore from "../store/sessionStore.ts";
 
 export const useAuth = () => {
-  const logout = useAuthStore.getState().clearAuth;
-  const { clearAllFields } = useValidationStore();
-
   const { createNewSession } = useSessions();
   const { current_session } = useSessionStore();
-  const { setAccessToken, setRefreshToken } = useAuthStore();
-  const { clearInit } = useInitStore();
 
   const loginUser = async (username: string, password: string) => {
     try {
@@ -24,8 +19,8 @@ export const useAuth = () => {
 
       const { access, refresh } = res.data;
 
-      setAccessToken(access);
-      setRefreshToken(refresh);
+      useAuthStore.getState().setAccessToken(access);
+      useAuthStore.getState().setRefreshToken(refresh);
       if (current_session?.length != 0) {
         await createNewSession();
       }
@@ -54,8 +49,8 @@ export const useAuth = () => {
 
       const { access, refresh } = res;
 
-      setAccessToken(access);
-      setRefreshToken(refresh);
+      useAuthStore.getState().setAccessToken(access);
+      useAuthStore.getState().setRefreshToken(refresh);
       await createNewSession();
       console.log("Registration successful, tokens stored");
     } catch (error) {
@@ -65,10 +60,10 @@ export const useAuth = () => {
   };
 
   const logoutUser = () => {
-    clearAllFields();
-    clearInit();
+    useValidationStore.getState().clearAllFields();
+    useInitStore.getState().clearInit();
     sessionStore.getState().clearAllSessions();
-    logout();
+    useAuthStore.getState().clearAuth();
   };
 
   return { login: loginUser, register: registerUser, logout: logoutUser };

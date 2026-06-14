@@ -1,92 +1,52 @@
-import {
-  Grid,
-  GridItem,
-  Box,
-  Flex,
-  IconButton,
-  useDisclosure,
-  Drawer,
-} from "@chakra-ui/react";
+import { useState } from "react";
 import { FiX } from "react-icons/fi";
 import Sidebar from "../components/SideBar";
 import ChatArea from "../components/ChatArea";
-import { useState } from "react";
+import { Sheet, SheetContent, SheetClose } from "../components/ui/sheet";
 
 const ChatPage = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  // Chakra UI v3: useDisclosure returns `open`, not `isOpen`
-  const { open, onOpen, onClose } = useDisclosure();
+  const [open, setOpen] = useState(false);
+
+  const onOpen = () => setOpen(true);
+  const onClose = () => setOpen(false);
 
   return (
-    <Box
-      h="100vh"
-      w="100vw"
-      bg="bg.canvas"
-      overflow="hidden"
-      p={0}
-      m={0}
-      position="relative"
-    >
-      <Grid
-        templateAreas={{
-          base: `"main"`,
-          md: `"aside main"`,
-        }}
-        templateColumns={{
-          base: "1fr",
-          md: isSidebarCollapsed ? "80px 1fr" : "280px 1fr",
-        }}
-        h="100vh"
-        w="100vw"
-        bg="bg.canvas"
-        transition="all 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
-        overflow="hidden"
-        gap={0}
+    <div className="h-screen w-screen bg-background overflow-hidden p-0 m-0 relative">
+      <div
+        className={`grid h-screen w-screen bg-background transition-all duration-400 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden gap-0 
+        ${isSidebarCollapsed ? "md:grid-cols-[80px_1fr]" : "md:grid-cols-[280px_1fr]"}
+        grid-cols-1`}
       >
         {/* Desktop Sidebar */}
-        <GridItem
-          area="aside"
-          overflow="hidden"
-          display={{ base: "none", md: "block" }}
-        >
+        <div className="hidden md:block overflow-hidden">
           <Sidebar onCollapse={setIsSidebarCollapsed} />
-        </GridItem>
+        </div>
 
-        {/* Mobile Sidebar — Chakra v3 Drawer namespace API */}
-        <Drawer.Root
-          open={open}
-          onOpenChange={(e) => (e.open ? onOpen() : onClose())}
-          placement="start"
-        >
-          <Drawer.Backdrop />
-          <Drawer.Positioner>
-            <Drawer.Content bg="bg.canvas" maxW="260px">
-              <Flex justify="flex-end" p={2} flexShrink={0}>
-                <Drawer.CloseTrigger asChild>
-                  <IconButton
-                    aria-label="Close sidebar"
-                    variant="ghost"
-                    size="sm"
-                    color="fg.muted"
-                    _hover={{ bg: "bg.subtle", color: "fg" }}
-                  >
-                    <FiX />
-                  </IconButton>
-                </Drawer.CloseTrigger>
-              </Flex>
-              <Box flex="1" overflow="hidden">
-                <Sidebar onCollapse={() => {}} />
-              </Box>
-            </Drawer.Content>
-          </Drawer.Positioner>
-        </Drawer.Root>
+        {/* Mobile Sidebar — Shadcn Sheet */}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent
+            side="left"
+            className="p-0 bg-background max-w-[260px] border-r-0 flex flex-col"
+          >
+            <div className="flex justify-end p-2 shrink-0">
+              <SheetClose className="p-1 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+                <FiX className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                <span className="sr-only">Close</span>
+              </SheetClose>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <Sidebar onCollapse={() => {}} />
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {/* Main Chat Area */}
-        <GridItem area="main" overflow="hidden" position="relative">
+        <div className="overflow-hidden relative">
           <ChatArea onOpenSidebar={onOpen} />
-        </GridItem>
-      </Grid>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 };
 

@@ -1,20 +1,19 @@
 "use client";
-import {
-  Button,
-  Dialog,
-  Field,
-  Input,
-  Portal,
-  Stack,
-  Text,
-  Link,
-  HStack,
-} from "@chakra-ui/react";
 import { useRef, useState, useEffect } from "react";
 import { apiKeySelection } from "../api/session-api.ts";
 import useInitStore from "../store/initStore.ts";
 import { Constants } from "../entities/Constants.ts";
 import { ExternalLink } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 interface Props {
   provider: string;
@@ -47,7 +46,7 @@ const APIKey = ({ provider, title, link }: Props) => {
     }
   }, [dialogOpen]);
 
-  const handleDialogChange = ({ open }: { open: boolean }) => {
+  const handleDialogChange = (open: boolean) => {
     setDialogOpen(open);
 
     // Clear local state when dialog closes
@@ -81,156 +80,55 @@ const APIKey = ({ provider, title, link }: Props) => {
   };
 
   return (
-    <Dialog.Root open={dialogOpen} onOpenChange={handleDialogChange}>
-      <Portal>
-        <Dialog.Backdrop
-          css={{
-            bg: "rgba(0, 0, 0, 0.6)",
-            backdropFilter: "blur(4px)",
-          }}
-        />
-        <Dialog.Positioner>
-          <Dialog.Content
-            css={{
-              bg: "bg.surface",
-              border: `1px solid ${"border.default"}`,
-              borderRadius: "lg",
-              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
-              maxW: "md",
-              mx: 4,
-            }}
+    <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-center flex justify-center items-center gap-1">
+            <span>Enter Your API Key -</span>
+            {apiLink ? (
+              <a
+                href={apiLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:text-primary/80 underline flex items-center gap-1 transition-all"
+              >
+                {provider}
+                <ExternalLink size={14} />
+              </a>
+            ) : (
+              <span className="text-primary">{provider}</span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 py-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="apiKey" className="font-medium text-sm">
+              {title}
+            </Label>
+            <Input
+              id="apiKey"
+              ref={ref}
+              placeholder="Enter your API KEY"
+              value={apiKey}
+              onChange={(e) => setAPIKey(e.target.value)}
+              className="w-full"
+            />
+          </div>
+        </div>
+        <DialogFooter className="sm:justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleDialogChange(false)}
           >
-            <Dialog.Header p={6} pb={4} bg={"bg.surface"} borderTopRadius="lg">
-              <Dialog.Title
-                css={{
-                  fontSize: "xl",
-                  fontWeight: "bold",
-                  color: "fg.default",
-                  textAlign: "center",
-                }}
-              >
-                <HStack justify="center" gap={1}>
-                  <Text>Enter Your API Key-</Text>
-                  {apiLink ? (
-                    <Link
-                      href={apiLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      color="app.button.primary"
-                      textDecoration="underline"
-                      display="flex"
-                      alignItems="center"
-                      gap={1}
-                      _hover={{
-                        color: "app.button.secondary",
-                        textDecoration: "underline",
-                        transform: "scale(1.02)",
-                      }}
-                      transition="all 0.2s ease"
-                    >
-                      {provider}
-                      <ExternalLink size={14} />
-                    </Link>
-                  ) : (
-                    <Text color="app.button.primary">{provider}</Text>
-                  )}
-                </HStack>
-              </Dialog.Title>
-            </Dialog.Header>
-            <Dialog.Body p={6} pt={2} bg={"bg.surface"}>
-              <Stack gap={4}>
-                <Field.Root>
-                  <Field.Label
-                    color={"fg.default"}
-                    fontSize="sm"
-                    fontWeight="medium"
-                    mb={2}
-                  >
-                    {title}
-                  </Field.Label>
-                  <Input
-                    ref={ref}
-                    placeholder="Enter your API KEY"
-                    value={apiKey}
-                    onChange={(e) => setAPIKey(e.target.value)}
-                    bg={"bg.canvas"}
-                    border="1px solid"
-                    borderColor={"border.default"}
-                    borderRadius="12px"
-                    color={"fg.default"}
-                    px={4}
-                    py={3}
-                    fontSize="sm"
-                    transition="all 0.3s ease"
-                    _placeholder={{
-                      color: "fg.muted",
-                    }}
-                    _focus={{
-                      borderColor: "border.accent",
-                      boxShadow: `0 0 0 1px ${"border.accent"}`,
-                      bg: "bg.surface",
-                    }}
-                    _hover={{
-                      borderColor: "border.subtle",
-                      bg: "bg.subtle",
-                    }}
-                  />
-                </Field.Root>
-              </Stack>
-            </Dialog.Body>
-            <Dialog.Footer
-              p={6}
-              pt={4}
-              gap={3}
-              bg={"bg.surface"}
-              borderBottomRadius="lg"
-            >
-              <Dialog.ActionTrigger asChild>
-                <Button
-                  borderRadius="12px"
-                  border="1px solid"
-                  borderColor={"border.default"}
-                  color={"fg.default"}
-                  bg="transparent"
-                  px={6}
-                  py={2}
-                  _hover={{
-                    bg: "bg.subtle",
-                    borderColor: "border.subtle",
-                  }}
-                  _active={{
-                    transform: "translateY(1px)",
-                  }}
-                  transition="all 0.2s"
-                >
-                  Cancel
-                </Button>
-              </Dialog.ActionTrigger>
-              <Button
-                onClick={handleApiKeySelect}
-                bg={"colorPalette.solid"}
-                color={"fg.inverted"}
-                borderRadius="12px"
-                px={6}
-                py={2}
-                fontWeight="medium"
-                _hover={{
-                  bg: "colorPalette.solid",
-                  opacity: 0.8,
-                  transform: "scale(1.02)",
-                }}
-                _active={{
-                  transform: "scale(0.98)",
-                }}
-                transition="all 0.2s"
-              >
-                Save
-              </Button>
-            </Dialog.Footer>
-          </Dialog.Content>
-        </Dialog.Positioner>
-      </Portal>
-    </Dialog.Root>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleApiKeySelect}>
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

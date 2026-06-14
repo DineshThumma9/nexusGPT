@@ -1,23 +1,11 @@
-import { Button, HStack, Text } from "@chakra-ui/react";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import useSessions from "../hooks/useSessions.ts";
 import { useState } from "react";
+import { Button } from "./ui/button";
 
 const SideBarNav = () => {
   const { createNewSession } = useSessions();
   const [isCreating, setIsCreating] = useState(false);
-
-  const hstackStyles = {
-    width: "100%",
-    bg: "glass.bg",
-    backdropFilter: "blur(20px)",
-    borderRadius: "xl",
-    justifyContent: "center",
-    height: "44px",
-    px: 3,
-    border: "1px solid",
-    borderColor: "border.subtle",
-  };
 
   const handleCreateNewSession = async () => {
     if (isCreating) return;
@@ -34,34 +22,19 @@ const SideBarNav = () => {
   };
 
   return (
-    <HStack {...hstackStyles}>
-      <Button
-        onClick={handleCreateNewSession}
-        loading={isCreating}
-        disabled={isCreating}
-        variant="ghost"
-        w="full"
-        h="40px"
-        borderRadius="lg"
-        color="brand.600"
-        display="flex"
-        gap={3}
-        justifyContent="center"
-        _hover={{
-          bg: "brand.subtle",
-          color: "brand.700",
-          transform: "translateY(-1px)",
-        }}
-        _active={{
-          transform: "translateY(0)",
-        }}
-      >
-        <Plus size={18} />
-        <Text fontSize="sm" fontWeight="600">
-          New Chat
-        </Text>
-      </Button>
-    </HStack>
+    <Button
+      onClick={handleCreateNewSession}
+      disabled={isCreating}
+      variant="default"
+      className="w-full h-10 rounded-xl flex gap-2.5 items-center justify-center font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-150 shadow-sm"
+    >
+      {isCreating ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <Plus size={16} />
+      )}
+      <span className="text-sm">New Chat</span>
+    </Button>
   );
 };
 

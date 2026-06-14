@@ -49,15 +49,15 @@ class Settings(BaseSettings):
     max_size_raw_mb: int = 50
     max_files_processable: int = 250
     max_size_processable_mb: int = 8
-    model_run_limit: int = 5
+    model_run_limit: int = 15
     model_thread_limit: int = 50
     model_exit_behavior: str = "end"
-    tool_run_limit: int = 5
+    tool_run_limit: int = 15
     tool_thread_limit: int = 50
     tool_exit_behaviour: str = "continue"
-    message_limit: int = 10
-    token_limit: int = 6000
-    keep_message_limit: int = 8
+    message_limit: int = 12
+    token_limit: int = 8000
+    keep_message_limit: int = 10
 
     # Supabase uses PgBouncer in transaction mode (port 6543) which multiplexes
     # client connections server-side. Keep SQLAlchemy's pool small — the pooler

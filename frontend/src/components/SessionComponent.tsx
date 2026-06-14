@@ -1,43 +1,47 @@
-import {
-  Box,
-  createToaster,
-  Editable,
-  Flex,
-  IconButton,
-  MenuPositioner,
-  Portal,
-  Text,
-} from "@chakra-ui/react";
 import { Edit, MoreVertical, Share, Trash } from "lucide-react";
-import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "./ui/menu.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import useSessions from "../hooks/useSessions.ts";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import DeleteAlert from "./DeleteAlert.tsx";
-
-const toaster = createToaster({ placement: "top" });
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { toast } from "sonner";
 
 interface Props {
   title: string;
   sessionId: string;
   onSelect?: () => void;
-  color: string;
-  bg: string;
+  isActive: boolean;
 }
 
-const SessionComponent = ({ title, sessionId, onSelect }: Props) => {
+const SessionComponent = ({ title, sessionId, onSelect, isActive }: Props) => {
   const { changeTitle, deleteSessionById } = useSessions();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(title);
   const [dialog, setIsDialog] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
 
   const handleChangeTitleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setEditValue(title);
     setIsEditing(true);
   };
 
-  const handleTitleUpdate = async (newTitle: string) => {
-    const trimmed = newTitle.trim();
+  const handleTitleUpdate = async () => {
+    const trimmed = editValue.trim();
     setIsEditing(false);
 
     if (trimmed && trimmed !== title) {
@@ -54,6 +58,7 @@ const SessionComponent = ({ title, sessionId, onSelect }: Props) => {
 
   const handleEditCancel = () => {
     setIsEditing(false);
+    setEditValue(title);
   };
 
   const handleDeleteSession = async () => {
@@ -70,228 +75,112 @@ const SessionComponent = ({ title, sessionId, onSelect }: Props) => {
 
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
-    toaster.create({
-      title: "Coming Soon",
+    toast("Coming Soon", {
       description: "Share functionality is not implemented yet",
-      type: "info",
       duration: 2000,
     });
   };
 
   return (
     <>
-      <Box
-        w="100%"
-        px={3}
-        py={2}
-        height="40px"
-        color="fg"
-        borderRadius="12px"
-        transition="all 0.2s ease"
-        cursor="pointer"
-        bg="transparent"
-        border="1px solid transparent"
+      <div
+        className={`w-full px-3 py-2 h-[40px] rounded-lg transition-all duration-150 cursor-pointer flex items-center border ${
+          isDeleting ? "opacity-50" : "opacity-100"
+        } ${
+          isActive
+            ? "bg-accent border-accent/20 text-accent-foreground font-medium shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+            : "bg-transparent border-transparent text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
+        }`}
         onClick={onSelect}
-        opacity={isDeleting ? 0.5 : 1}
-        _hover={{
-          bg: { base: "gray.50", _dark: "gray.800" },
-          borderColor: { base: "brand.200", _dark: "brand.700" },
-          transform: "translateX(4px)",
-          boxShadow: "sm",
-        }}
-        _active={{
-          transform: "translateX(2px)",
-        }}
       >
-        <Flex justify="space-between" align="center" w="100%" h="100%">
+        <div className="flex justify-between items-center w-full h-full">
           {/* Title section - takes available space */}
-          <Box flex="1" minW={0} mr={2} overflow="hidden">
-            <Editable.Root
-              value={title}
-              edit={isEditing}
-              onEditChange={({ edit }) => setIsEditing(edit)}
-              onValueCommit={({ value }) => handleTitleUpdate(value)}
-              onValueRevert={handleEditCancel}
-              disabled={isUpdatingTitle}
-              selectOnFocus={true}
-            >
-              <Editable.Preview
-                asChild
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isUpdatingTitle) {
-                    setIsEditing(true);
-                  }
-                }}
-              >
-                <Text
-                  fontSize="sm"
-                  fontWeight="medium"
-                  color="fg"
-                  overflow="hidden"
-                  whiteSpace="nowrap"
-                  textOverflow="ellipsis"
-                  opacity={isUpdatingTitle ? 0.7 : 1}
-                  cursor={isUpdatingTitle ? "default" : "text"}
-                  maxW="100%"
-                  display="block"
-                  _hover={{
-                    opacity: isUpdatingTitle ? 0.7 : 0.9,
-                    color: { base: "brand.700", _dark: "brand.400" },
+          <div className="flex-1 min-w-0 mr-2 overflow-hidden flex items-center">
+            <div className="flex-1 min-w-0">
+              {isEditing ? (
+                <Input
+                  ref={inputRef}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={handleTitleUpdate}
+                  disabled={isUpdatingTitle}
+                  className="h-7 text-sm font-medium px-2 py-1 bg-background"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      handleEditCancel();
+                    }
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleTitleUpdate();
+                    }
                   }}
-                  transition="all 0.2s ease"
+                />
+              ) : (
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isUpdatingTitle) setIsEditing(true);
+                  }}
+                  className={`text-sm overflow-hidden whitespace-nowrap text-ellipsis transition-all duration-200 block max-w-full ${
+                    isUpdatingTitle
+                      ? "opacity-70 cursor-default"
+                      : "cursor-text"
+                  } ${isActive ? "text-accent-foreground font-semibold" : "text-muted-foreground"}`}
                 >
                   {title}
-                </Text>
-              </Editable.Preview>
-              <Editable.Input
-                fontSize="sm"
-                fontWeight="medium"
-                px={2}
-                py={1}
-                borderRadius="6px"
-                color={"fg"}
-                bg={"bg.panel"}
-                border="1px solid"
-                borderColor={"border.subtle"}
-                w="100%"
-                _focus={{
-                  borderColor: "border.emphasized",
-                  boxShadow: `0 0 0 1px ${"border.emphasized"}`,
-                  outline: "none",
-                  bg: "bg.subtle",
-                }}
-                _hover={{
-                  borderColor: "border",
-                }}
-                transition="all 0.2s ease"
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    handleEditCancel();
-                  }
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    const target = e.target as HTMLInputElement;
-                    handleTitleUpdate(target.value);
-                  }
-                }}
-              />
-            </Editable.Root>
-          </Box>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Menu button - compact and subtle */}
-          <Box flexShrink={0}>
-            <MenuRoot>
-              <MenuTrigger asChild>
-                <IconButton
-                  onClick={(e) => e.stopPropagation()}
-                  disabled={isDeleting || isUpdatingTitle}
-                  size="xs"
+          <div className="shrink-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
                   variant="ghost"
-                  bg="transparent"
-                  color={{ base: "brand.700", _dark: "brand.600" }}
-                  w="24px"
-                  h="24px"
-                  minW="24px"
-                  borderRadius="6px"
-                  transition="all 0.2s ease"
-                  _hover={{
-                    bg: { base: "brand.50", _dark: "brand.950" },
-                    color: { base: "brand.800", _dark: "brand.500" },
-                    transform: "scale(1.1)",
-                  }}
-                  _active={{
-                    bg: { base: "brand.100", _dark: "brand.900" },
-                    transform: "scale(0.95)",
-                  }}
-                  _disabled={{
-                    opacity: 0.5,
-                    cursor: "not-allowed",
-                  }}
-                  aria-label="Session options"
+                  size="icon"
+                  className="w-6 h-6 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isDeleting || isUpdatingTitle}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <MoreVertical size={14} />
-                </IconButton>
-              </MenuTrigger>
-              <Portal>
-                <MenuPositioner>
-                  <MenuContent
-                    bg={"bg.panel"}
-                    border={`1px solid ${"border.subtle"}`}
-                    borderRadius="8px"
-                    boxShadow={`0 4px 12px ${"md"}`}
-                    py={1}
-                    minW="150px"
-                  >
-                    <MenuItem
-                      value="title"
-                      onClick={handleChangeTitleClick}
-                      disabled={isUpdatingTitle}
-                      color={"fg"}
-                      fontSize="sm"
-                      px={3}
-                      py={2}
-                      gap={2}
-                      transition="all 0.2s ease"
-                      _hover={{
-                        bg: { base: "brand.50", _dark: "brand.950" },
-                        color: { base: "brand.700", _dark: "brand.300" },
-                      }}
-                      _disabled={{
-                        opacity: 0.5,
-                        cursor: "not-allowed",
-                      }}
-                    >
-                      <Edit size={14} />
-                      {isUpdatingTitle ? "Updating..." : "Rename"}
-                    </MenuItem>
-                    <MenuItem
-                      value="share"
-                      onClick={handleShare}
-                      color={"fg"}
-                      fontSize="sm"
-                      px={3}
-                      py={2}
-                      gap={2}
-                      transition="all 0.2s ease"
-                      _hover={{
-                        bg: { base: "brand.50", _dark: "brand.950" },
-                        color: { base: "brand.700", _dark: "brand.300" },
-                      }}
-                    >
-                      <Share size={14} />
-                      Share
-                    </MenuItem>
-                    <MenuItem
-                      value="delete"
-                      onClick={() => setIsDialog(true)}
-                      disabled={isDeleting}
-                      color={"fg"}
-                      fontSize="sm"
-                      px={3}
-                      py={2}
-                      gap={2}
-                      transition="all 0.2s ease"
-                      _hover={{
-                        bg: { base: "red.50", _dark: "red.950" },
-                        color: { base: "red.700", _dark: "red.300" },
-                      }}
-                      _disabled={{
-                        opacity: 0.5,
-                        cursor: "not-allowed",
-                      }}
-                    >
-                      <Trash size={14} />
-                      Delete
-                    </MenuItem>
-                  </MenuContent>
-                </MenuPositioner>
-              </Portal>
-            </MenuRoot>
-          </Box>
-        </Flex>
-      </Box>
+                  <MoreVertical className="h-3.5 w-3.5" />
+                  <span className="sr-only">Session options</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuItem
+                  onClick={handleChangeTitleClick}
+                  disabled={isUpdatingTitle}
+                  className="gap-2 text-sm cursor-pointer"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                  {isUpdatingTitle ? "Updating..." : "Rename"}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleShare}
+                  className="gap-2 text-sm cursor-pointer"
+                >
+                  <Share className="h-3.5 w-3.5" />
+                  Share
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDialog(true);
+                  }}
+                  disabled={isDeleting}
+                  className="gap-2 text-sm text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                >
+                  <Trash className="h-3.5 w-3.5" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </div>
 
       {dialog && (
         <DeleteAlert
