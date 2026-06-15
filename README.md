@@ -34,7 +34,7 @@ Unlike generic chatbots, NexusGPT understands *structure* — it knows which fun
 | 🤖 **Multi LLM Provider** | Switch between OpenAI, Anthropic, Groq, and other providers at runtime |
 | 🔌 **MCP Support** | Connect Model Context Protocol (MCP) servers via SSE for extensible, plugin-style tool access |
 | ⚡ **Streaming Responses** | Server-Sent Events (SSE) deliver token-by-token streaming directly to the UI |
-| 🌳 **AST-Aware Chunking** | Tree-sitter extracts functions, classes, and interfaces — no naive text splitting |
+| 🌳 **SCIP Indexing** | Uses SCIP for high-fidelity symbol resolution and accurate cross-references |
 | 📊 **Full Observability** | Sentry error tracking + LangSmith agent traces for complete production insight |
 | 🔒 **Rate Limiting** | SlowAPI protects all endpoints from abuse |
 | 🚀 **Background Ingestion** | Celery workers handle repo cloning and parsing asynchronously |
@@ -58,7 +58,7 @@ All services orchestrated via **Docker Compose**, deployed on **AWS EC2**. Load 
 | Technology | Role |
 |---|---|
 | **React 18** (Vite) | UI framework — fast HMR, lightning builds |
-| **Chakra UI v3** | Component library — accessible, themeable, dark-mode-first |
+| **Shadcn UI** | Component library — accessible, customizable, and beautifully designed |
 | **Zustand** | Lightweight global state management |
 | **Axios** | HTTP client — interceptors, auth headers, error handling |
 | **Shiki** | Accurate, theme-aware syntax highlighting via Shiki + CodeBlock |
@@ -83,7 +83,7 @@ All services orchestrated via **Docker Compose**, deployed on **AWS EC2**. Load 
 
 | Technology | Role |
 |---|---|
-| **tree-sitter-language-pack** | Multi-language AST parsing (Python, TS, JS, Rust, Go, C++, Java, ...) |
+| **SCIP** | High-fidelity AST parsing and code intelligence indexing (Python, TS, Go, Rust, C++, Java, ...) |
 | **voyage-code-3** | High-fidelity code embeddings for Qdrant code chunk ingestion |
 | **nomic-embed-text** | Document-style embeddings for README, markdown, and prose chunks |
 
@@ -119,7 +119,7 @@ nexusgpt/
 │   │   ├── models/          # SQLModel table definitions
 │   │   ├── schema/          # Pydantic request/response schemas
 │   │   ├── db/              # Async SQLAlchemy engine & sessions
-│   │   ├── ingestion/       # Tree-sitter parsing + Qdrant/Neo4j indexing
+│   │   ├── ingestion/       # SCIP parsing + Qdrant/Neo4j indexing
 │   │   └── celery_app/      # Celery tasks & worker config
 │   ├── docker-compose.dev.yml
 │   ├── Dockerfile
@@ -245,9 +245,9 @@ NexusGPT uses two complementary retrieval strategies on every query:
 
 The agent synthesises both signals before generating a response.
 
-### AST-Aware Chunking
+### SCIP-Based Code Intelligence
 
-Code is parsed by `tree-sitter-language-pack` into an AST before any chunking occurs. Functions, classes, methods, and interfaces are extracted as discrete, semantically complete nodes — not arbitrary line ranges. This dramatically improves retrieval relevance and prevents context bleed between unrelated code blocks.
+Code is indexed using the **Source Code Indexing Protocol (SCIP)** before chunking or graph insertion occurs. Instead of heuristic AST-walking, SCIP provides high-fidelity symbol resolution, precise cross-references, and deep relationship mapping. This dramatically improves retrieval relevance and prevents context bleed between unrelated code blocks.
 
 Supported languages include: **Python, TypeScript, JavaScript, Rust, Go, C, C++, Java, Ruby, PHP**, and more.
 
@@ -263,7 +263,7 @@ Switch between providers from the chat interface without restarting anything. Th
 
 Submitting a GitHub repository kicks off a Celery task that:
 1. Clones the repo (or fetches a tarball via httpx from the GitHub API)
-2. Walks the file tree and runs Tree-sitter AST parsing per file
+2. Runs SCIP indexing to extract precise symbols, relationships, and cross-references
 3. Embeds chunks with `voyage-code-3` or `nomic-embed-text` and upserts into Qdrant
 4. Writes file/symbol/import nodes and edges into Neo4j
 5. Streams real-time progress back to the frontend via SSE
