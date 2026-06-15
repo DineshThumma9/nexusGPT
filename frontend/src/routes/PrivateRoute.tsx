@@ -7,8 +7,6 @@ export default function PrivateRoute({
 }: {
   children: React.ReactElement;
 }) {
-  // Temporarily bypassed for backend refactoring
-  return children;
-  // const token = useAuthStore.getState().accessToken
-  // return token ? children : <Navigate to="/login"/>;
+  const token = useAuthStore((state) => state.accessToken);
+  return token ? children : <Navigate to="/login" />;
 }

@@ -44,7 +44,7 @@ Unlike generic chatbots, NexusGPT understands *structure* — it knows which fun
 ## 🏗️ Architecture
 
 
-![AWS EC2 Deployment Pipeline](./AWS%20EC2%20Deployment%20Pipeline.svg)
+![AWS EC2 Deployment Pipeline](./AWS%20EC2%20Semantic%20Code.svg)
 
 
 All services orchestrated via **Docker Compose**, deployed on **AWS EC2**. Load testing was conducted using **Locust** to ensure system stability and performance under heavy traffic.

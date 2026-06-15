@@ -251,26 +251,24 @@ async def setup_mcp(
             else:
                 encrypt_key = crypto.encrypt(api_key)
 
-            mcp = await db.execute(
-                select(UserMCPConfig).where(
-                    UserMCPConfig.user_id == user.userid,
-                    UserMCPConfig.server_url == item.server_url,
+            item.api_key = encrypt_key
+
+            stmt = (
+                pg_insert(UserMCPConfig)
+                .values(user_id=user.userid, **item.model_dump())
+                .on_conflict_do_update(
+                    index_elements=["user_id", "server_url"],
+                    set_={
+                        "type": item.type,
+                        "auth_header": item.auth_header,
+                        "gallery": item.gallery,
+                        "version": item.version,
+                        "api_key": encrypt_key,
+                        "is_active": item.is_active,
+                    },
                 )
             )
-
-            mcp = mcp.scalars().first()
-            if mcp:
-                await db.execute(
-                    delete(UserMCPConfig).where(
-                        UserMCPConfig.user_id == user.userid,
-                        UserMCPConfig.server_url == item.server_url,
-                    )
-                )
-
-            item.api_key = encrypt_key
-            mcp = UserMCPConfig(**item.model_dump())
-            mcp.user_id = user.userid
-            db.add(mcp)
+            await db.execute(stmt)
 
         except Exception as e:
             logger.error(f"Error parsing mcp config: {e}")

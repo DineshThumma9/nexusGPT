@@ -45,7 +45,6 @@ class AgentService:
         )
 
         if config.provider == "huggingface":
-            # Force the Inference API instead of local pipeline
             hf_llm = HuggingFaceEndpoint(
                 repo_id=config.model,
                 huggingfacehub_api_token=decrypted_key,
@@ -77,7 +76,7 @@ class AgentService:
 
         if session.kb_id:
             result = await self.db.execute(
-                select(KnowledgeBase).where(KnowledgeBase.kb_id == Session.kb_id)
+                select(KnowledgeBase).where(KnowledgeBase.kb_id == session.kb_id)
             )
             kb = result.scalars().first()
 

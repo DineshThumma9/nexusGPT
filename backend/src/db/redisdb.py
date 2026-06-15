@@ -3,9 +3,8 @@ from redis.asyncio import Redis as AsyncRedis
 
 from src.config.settings import settings
 
-# Synchronous client (used in Celery tasks, sessions, and sync code)
-
 _sredis, _aredis = None, None
+_redis_init_attempted = False
 
 
 class RedisProxy:
@@ -13,13 +12,17 @@ class RedisProxy:
         self.is_async = is_async
 
     def __getattr__(self, name):
-        global _sredis, _aredis
+        global _sredis, _aredis, _redis_init_attempted
         target = _aredis if self.is_async else _sredis
         if target is None:
-            # Lazy initialization for Celery workers or script runners
-            # that bypass the FastAPI lifespan hook.
-            init_redis()
-            target = _aredis if self.is_async else _sredis
+            if not _redis_init_attempted:
+                _redis_init_attempted = True
+                init_redis()
+                target = _aredis if self.is_async else _sredis
+            else:
+                raise RuntimeError(
+                    "Redis initialization failed previously or is unavailable"
+                )
 
         return getattr(target, name)
 

@@ -17,7 +17,6 @@ from .db import dbs
 from .db.dbs import (
     _init_db,
     close_checkpointer,
-    create_all_tables,
     init_checkpointer,
 )
 from .db.graphdb import close_graph, init_graph
@@ -71,7 +70,6 @@ else:
 async def lifespan(app: FastAPI):
     # 1. Init engines and create tables — must be first
     _init_db()
-    await create_all_tables()
 
     # 2. Warm up the async connection pool so the first real request
     #    doesn't pay the TCP handshake + pool-init cost (~500ms)

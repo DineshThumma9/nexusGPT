@@ -13,6 +13,7 @@ class KBStatus(str, Enum):
     READY = "ready"
     FAILED = "failed"
     REJECTED = "rejected"
+    STALE = "stale"
 
 
 class KBSourceType(str, Enum):

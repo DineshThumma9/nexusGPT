@@ -82,3 +82,5 @@ graphify-out/
 backend/locus/*
 backend/locustfile.py
 runs/
+backend/src/service/pipelines/code/scip/generate_scip.sh
+backend/src/service/pipelines/code/scip/scip.proto

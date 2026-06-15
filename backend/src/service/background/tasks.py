@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 from datetime import datetime
@@ -64,7 +63,7 @@ def ingest_git_repo_task(
     req_dict: dict, kb_id: str, session_id: str = None, user_id: str = None
 ):
     """Celery background task to fully ingest a Github repository."""
-    asyncio.run(wipe_kb_data(kb_id))
+    wipe_kb_data(kb_id)
     _set_status(kb_id, "processing", "Indexing initialized...")
     update_kb(kb_id=kb_id, status=KBStatus.INDEXING)
 
@@ -91,7 +90,7 @@ def ingest_pdf_task(
     file_paths: List[str], kb_id: str, session_id: str = None, user_id: str = None
 ):
     """Celery background task to fully ingest uploaded PDF files."""
-    asyncio.run(wipe_kb_data(kb_id))
+    wipe_kb_data(kb_id)
     _set_status(kb_id, "processing", "Indexing initialized...")
     update_kb(kb_id=kb_id, status=KBStatus.INDEXING)
 

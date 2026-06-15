@@ -1,5 +1,7 @@
+import asyncio
 import json
 import time
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -11,7 +13,43 @@ from src.db.redisdb import aredis as redis_client
 from src.models.models import UserMCPConfig
 from src.service.crypto import CyrptoService
 
-_MCP_CLIENT_CACHE: dict[str, Any] = {}
+
+class AsyncLRUCache:
+    def __init__(self, maxsize: int = 100):
+        self.cache: OrderedDict[str, Any] = OrderedDict()
+        self.maxsize = maxsize
+
+    def get(self, key: str) -> Any:
+        if key in self.cache:
+            self.cache.move_to_end(key)
+            return self.cache[key]
+        return None
+
+    def set(self, key: str, value: Any) -> None:
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        self.cache[key] = value
+        if len(self.cache) > self.maxsize:
+            _, evicted_item = self.cache.popitem(last=False)
+            self._close_client_safely(evicted_item.get("client"))
+
+    def delete(self, key: str) -> None:
+        if key in self.cache:
+            item = self.cache.pop(key)
+            self._close_client_safely(item.get("client"))
+
+    def _close_client_safely(self, client: Optional[MultiServerMCPClient]) -> None:
+        if not client:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+            if hasattr(client, "close"):
+                loop.create_task(client.close())
+        except Exception as e:
+            logger.error(f"Error scheduling MCP client closure: {e}")
+
+
+_MCP_CLIENT_CACHE = AsyncLRUCache(maxsize=50)
 
 
 class MCPService:
@@ -85,23 +123,26 @@ class MCPService:
 
         # Check cache for existing connection
         config_str = json.dumps(client_config, sort_keys=True)
-        if self.user_id in _MCP_CLIENT_CACHE:
-            cached_item = _MCP_CLIENT_CACHE[self.user_id]
+        cached_item = _MCP_CLIENT_CACHE.get(self.user_id)
+        if cached_item:
             if cached_item["config_str"] == config_str:
                 logger.info(f"Reusing existing MCP client for user {self.user_id}")
                 self.client = cached_item["client"]
                 self.client_config = client_config
                 return
             else:
-                del _MCP_CLIENT_CACHE[self.user_id]
+                _MCP_CLIENT_CACHE.delete(self.user_id)
 
         self.client_config = client_config
         self.client = MultiServerMCPClient(client_config)
 
-        _MCP_CLIENT_CACHE[self.user_id] = {
-            "config_str": config_str,
-            "client": self.client,
-        }
+        _MCP_CLIENT_CACHE.set(
+            self.user_id,
+            {
+                "config_str": config_str,
+                "client": self.client,
+            },
+        )
 
     async def load_tools(self) -> List[Any]:
         """Load tools from all MCP servers."""

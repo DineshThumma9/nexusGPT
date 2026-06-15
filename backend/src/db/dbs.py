@@ -6,7 +6,6 @@ from psycopg_pool import AsyncConnectionPool
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlmodel import SQLModel
 
 from src.config.settings import settings
 
@@ -93,13 +92,6 @@ def get_task_db():
         raise
     finally:
         db.close()
-
-
-async def create_all_tables():
-    # Ensure engine is initialised before using it
-    _init_db()
-    async with async_engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
 
 
 async def init_checkpointer():

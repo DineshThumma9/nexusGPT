@@ -1,11 +1,11 @@
 from loguru import logger
 from qdrant_client.http import models as rest_models
 
-from src.db.graphdb import get_async_graph
-from src.db.vectordb import COLLECTION, COLLECTION_CODE, get_qdrant
+from src.db.graphdb import get_graph
+from src.db.vectordb import COLLECTION, COLLECTION_CODE, _get_sync_client
 
 
-async def wipe_kb_data(kb_id: str) -> None:
+def wipe_kb_data(kb_id: str) -> None:
     """Remove all stored data for a given kb_id from Qdrant and Neo4j.
 
     Safe to call at the start of an ingest task to make re-ingestion idempotent.
@@ -13,11 +13,11 @@ async def wipe_kb_data(kb_id: str) -> None:
     re-dispatch (user re-submits the same repo).
     """
     ns = str(kb_id)
-    client = get_qdrant()
+    client = _get_sync_client()
 
     for collection in (COLLECTION, COLLECTION_CODE):
         try:
-            await client.delete(
+            client.delete(
                 collection_name=collection,
                 points_selector=rest_models.Filter(
                     must=[
@@ -32,9 +32,10 @@ async def wipe_kb_data(kb_id: str) -> None:
             logger.warning(f"Qdrant wipe failed for {collection} kb={ns}: {e}")
 
     try:
-        driver = get_async_graph()
-        async with driver.session() as session:
-            await session.run(
+        graph = get_graph()
+        driver = graph._driver
+        with driver.session() as session:
+            session.run(
                 "MATCH (n {ns: $ns}) DETACH DELETE n",
                 ns=ns,
             )

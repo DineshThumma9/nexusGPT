@@ -49,7 +49,8 @@ async def register(
     try:
         auth.db.add(new_user)
         await auth.db.commit()
-        return await auth.create_tokens({"sub": user.email})
+        # Automatically whitelisted on creation now!
+        return await auth.create_tokens(user.email)
     except Exception as e:
         await auth.db.rollback()
         logger.exception("User registration failed")
@@ -76,7 +77,42 @@ async def login(
     if not pass_valid:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    return await auth.create_tokens({"sub": user.email})
+    return await auth.create_tokens(user.email)
+
+
+@router.post("/logout")
+async def logout(
+    refresh: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+):
+    try:
+        # 1. Blacklist the access token
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.algorithm]
+        )
+        access_jti = payload.get("jti")
+        exp = payload.get("exp")
+        now = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        ttl = int(exp - now)
+        if ttl > 0:
+            await aredis.setex(f"blacklist:{access_jti}", ttl, "1")
+
+        # 2. Remove the refresh token from the whitelist
+        refresh_payload = jwt.decode(
+            refresh, settings.secret_key, algorithms=[settings.algorithm]
+        )
+        refresh_jti = refresh_payload.get("jti")
+        await aredis.delete(f"whitelist:{current_user.email}:{refresh_jti}")
+
+    except JWTError:  # Fixed: Catches python-jose library native error type
+        logger.warning("Malformed or un-decodable token parsed during logout")
+        raise HTTPException(status_code=400, detail="Malformed token context")
+    except Exception:
+        logger.exception("Logout cache mutation failure")
+        raise HTTPException(status_code=500, detail="Internal session tear-down failed")
+
+    return JSONResponse(content={"detail": "Logged out successfully"}, status_code=200)
 
 
 @router.post("/refresh", response_model=Token)
@@ -89,42 +125,26 @@ async def refresh_token(
             refresh, settings.secret_key, algorithms=[settings.algorithm]
         )
         email = payload.get("sub")
-        if not email:
+        jti = payload.get("jti")
+        if not email or not jti:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-        cached_email = await aredis.get(f"refresh:{refresh}")
-        if not cached_email:
-            raise HTTPException(
-                status_code=401, detail="Refresh token not found or expired"
-            )
-
-        await aredis.delete(f"refresh:{refresh}")
-        return await auth.create_tokens({"sub": email})
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+    redis_key = f"whitelist:{email}:{jti}"
+    is_whitelisted = await aredis.get(redis_key)
 
-@router.post("/logout")
-async def logout(
-    current_user: User = Depends(get_current_user),
-    token: str = Depends(oauth2_scheme),
-):
-    try:
-        payload = jwt.decode(
-            token, settings.secret_key, algorithms=[settings.algorithm]
-        )
-        jti = payload.get("jti")
-        exp = payload.get("exp")
-        if jti and exp:
-            ttl = exp - int(datetime.datetime.utcnow().timestamp())
-            if ttl > 0:
-                await aredis.setex(f"revoked:{jti}", ttl, "1")
-    except Exception:
-        pass
+    if not is_whitelisted:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-    return JSONResponse(content={"detail": "Logged out successfully"}, status_code=200)
+    await aredis.delete(redis_key)
+
+    new_token = await auth.create_tokens(email)
+
+    return new_token
 
 
 @router.get("/me")

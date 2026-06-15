@@ -1,3 +1,4 @@
+import asyncio
 import concurrent
 import concurrent.futures
 import os
@@ -12,14 +13,10 @@ import tree_sitter_language_pack as tlsp
 from loguru import logger
 from qdrant_client.models import PointStruct
 from tree_sitter import Parser, Query, QueryCursor
-from tree_sitter_language_pack import (
-    ProcessConfig,
-    detect_language_from_path,
-    process,
-)
+from tree_sitter_language_pack import ProcessConfig, detect_language_from_path, process
 
-from src.db.graphdb import get_graph
-from src.db.vectordb import vector_db
+from src.db.graphdb import get_async_graph, get_graph
+from src.db.vectordb import _client, vector_db
 from src.models.code_schema import (
     FileParseResult,
     GraphEntity,
@@ -39,12 +36,8 @@ from src.service.constants import (
     SKIP_EXTENSIONS,
 )
 
-from ..languages.grammer import (
-    LANUGUAGE_GRAMMERS,
-)
-from .complied_object import (
-    CompiledObjectProcessor,
-)
+from ..languages.grammer import LANUGUAGE_GRAMMERS
+from .complied_object import CompiledObjectProcessor
 
 # Capture names that identify the *called function name* node (an identifier).
 # Whole-node captures like @call_node / @args are excluded.
@@ -85,6 +78,7 @@ class CodePipeline:
         self.graph = get_graph()
         self.driver = self.graph._driver
         self.vector_db = vector_db
+        self.async_neo4j = get_async_graph()
 
         self.project_files = []
         self.processed_code = []
@@ -416,30 +410,27 @@ class CodePipeline:
 
         logger.info(f"[vectordb] Embedding {len(texts)} chunks...")
         vectors = self.vector_db.embeddings.embed_documents(texts)
-        logger.info(
-            f"[vectordb] Embeddings done in {time.time() - t0:.2f}s, uploading to Qdrant..."
-        )
 
-        t1 = time.time()
         points = [
             PointStruct(
                 id=str(uuid.uuid4()),
-                vector=vectors[i],
-                payload={"page_content": texts[i], "metadata": metadatas[i]},
+                vector=vectors[j],
+                payload={"page_content": texts[j], "metadata": metadatas[j]},
             )
-            for i in range(len(texts))
+            for j in range(len(texts))
         ]
 
-        batch_size = 500
+        logger.info(f"[vectordb] Uploading {len(points)} points to Qdrant...")
         self.vector_db.client.upload_points(
             collection_name=self.vector_db.collection_name,
             points=points,
-            batch_size=batch_size,
+            batch_size=500,
             max_retries=3,
             wait=False,
         )
+
         logger.info(
-            f"[vectordb] Uploaded {len(points)} points in {time.time() - t1:.2f}s (total: {time.time() - t0:.2f}s)"
+            f"[vectordb] Uploaded all {len(points)} points in {time.time() - t0:.2f}s"
         )
 
     def build_graph(self):
@@ -458,40 +449,47 @@ class CodePipeline:
         logger.info(
             f"[graph] Writing {len(all_entites)} entities and {len(all_relations)} relations to Neo4j..."
         )
+
         with self.driver.session() as session:
+            session.run(
+                "CREATE INDEX node_id_index IF NOT EXISTS FOR (n:CodeNode) ON (n.id)"
+            )
+            session.run(
+                "CREATE INDEX node_ns_index IF NOT EXISTS FOR (n:CodeNode) ON (n.ns)"
+            )
+
             with session.begin_transaction() as tx:
-                if all_entites:
-                    tx.run(
-                        """
-                            UNWIND $batch as entity
-                            MERGE (n:CodeNode {id:entity.node_id})
-                            ON CREATE SET
-                             n.name = entity.name,
-                             n.kind = entity.kind,
-                             n.ns = $ns
-                        """,
-                        batch=all_entites,
-                        ns=self.kb_id,
-                    )
+                tx.run(
+                    """
+                        UNWIND $batch as entity
+                        MERGE (n:CodeNode {id:entity.node_id})
+                        ON CREATE SET
+                         n.name = entity.name,
+                         n.kind = entity.kind,
+                         n.ns = $ns
+                    """,
+                    batch=all_entites,
+                    ns=self.kb_id,
+                )
 
-                if all_relations:
-                    for rel_type in ["CONTAINS", "CALLS", "IMPORTS", "HAS_METHOD"]:
-                        specific_rel = [
-                            r for r in all_relations if r["rel_type"] == rel_type
-                        ]
-
-                        if specific_rel:
-                            tx.run(
-                                f"""
+                # Insert all relations grouped by type
+                for rel_type in ["CONTAINS", "CALLS", "IMPORTS", "HAS_METHOD"]:
+                    specific_rel = [
+                        r for r in all_relations if r["rel_type"] == rel_type
+                    ]
+                    if specific_rel:
+                        tx.run(
+                            f"""
                            UNWIND $batch as rel
-                           MERGE (source:CodeNode {{id:rel.source_id}})
-                           MERGE (target:CodeNode {{id:rel.target_id}})
+                           MERGE (source:CodeNode {{id:rel.source_id, ns:$ns}})
+                           MERGE (target:CodeNode {{id:rel.target_id, ns:$ns}})
                            MERGE (source)-[r:{rel_type}]->(target)
                            SET r += rel.properties
                            """,
-                                batch=specific_rel,
-                                ns=self.kb_id,
-                            )
+                            batch=specific_rel,
+                            ns=self.kb_id,
+                        )
+
         logger.info(f"[graph] Neo4j write complete in {time.time() - t0:.2f}s")
 
     def build_kb(self):

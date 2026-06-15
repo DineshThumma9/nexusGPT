@@ -19,6 +19,12 @@ def init_graph(force_reconnect=False):
                 "keep_alive": True,
             },
         )
+        try:
+            _graph.query(
+                "CREATE FULLTEXT INDEX code_search_index IF NOT EXISTS FOR (n:CodeNode) ON EACH [n.name, n.kind]"
+            )
+        except Exception:
+            pass
     return _graph
 
 

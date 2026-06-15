@@ -6,7 +6,6 @@ from typing import Dict, List
 
 import httpx
 from fastapi import Depends, HTTPException
-from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from jose.exceptions import JWTError
@@ -19,7 +18,6 @@ from src.config.settings import settings
 from src.db.dbs import get_db
 from src.db.redisdb import aredis
 from src.models.models import APIKEYS, User
-from src.models.schema import Token
 from src.service.constants import _VALIDATION_URLS
 from src.service.crypto import CyrptoService
 
@@ -94,8 +92,8 @@ class AuthService:
         jti = payload.get("jti")
         if jti:
             try:
-                revoked = await aredis.get(f"revoked:{jti}")
-                if revoked:
+                is_blacklisted = await aredis.get(f"blacklist:{jti}")
+                if is_blacklisted:
                     raise credentials_exception
             except HTTPException:
                 raise
@@ -107,19 +105,21 @@ class AuthService:
             raise credentials_exception
         return user
 
-    async def create_tokens(self, data: dict):
-        now = datetime.datetime.utcnow()
-        email = data.get("sub")
+    async def create_tokens(self, user_email: str) -> dict:
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        access_jti = str(uuid.uuid4())
+        refresh_jti = str(uuid.uuid4())
 
         access_payload = {
-            **data,
+            "sub": user_email,
             "exp": now + datetime.timedelta(minutes=settings.access_token_expiry_min),
-            "jti": uuid.uuid4().hex,
+            "jti": access_jti,
         }
         refresh_payload = {
-            **data,
+            "sub": user_email,
             "exp": now + datetime.timedelta(days=settings.refresh_token_expiry_days),
-            "jti": uuid.uuid4().hex,
+            "jti": refresh_jti,
         }
 
         try:
@@ -131,30 +131,19 @@ class AuthService:
             )
         except Exception:
             logger.exception("JWT encoding failed")
-            return JSONResponse(
-                content={"detail": "Token generation failed"}, status_code=500
-            )
+            raise HTTPException(status_code=500, detail="Token generation failed")
 
-        try:
-            await aredis.setex(
-                f"refresh:{refresh_token}",
-                int(
-                    datetime.timedelta(
-                        days=settings.refresh_token_expiry_days
-                    ).total_seconds()
-                ),
-                email,
-            )
-        except Exception:
-            logger.exception("Redis setex failed")
-            return JSONResponse(
-                content={"detail": "Token generation failed"}, status_code=500
-            )
-
-        return JSONResponse(
-            content=Token(access=access_token, refresh=refresh_token).model_dump(),
-            status_code=200,
+        refresh_expiry_seconds = int(
+            datetime.timedelta(days=settings.refresh_token_expiry_days).total_seconds()
         )
+        redis_key = f"whitelist:{user_email}:{refresh_jti}"
+        await aredis.setex(redis_key, refresh_expiry_seconds, "1")
+
+        return {
+            "access": access_token,
+            "refresh": refresh_token,
+            "token_type": "bearer",
+        }
 
     async def get_api_key(self, provider: str, user: User) -> str:
         result = await self.db.execute(
