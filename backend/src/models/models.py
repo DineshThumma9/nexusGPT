@@ -44,6 +44,11 @@ class Session(SQLModel, table=True):
     )
     title: str = Field(default="New Chat")
     model: str
+    input_tokens: int = Field(default=0)
+    output_tokens: int = Field(default=0)
+    total_tokens: int = Field(default=0)
+    cached_input_tokens: int = Field(default=0)
+    reasoning_tokens: int = Field(default=0)
     created_at: datetime = Field(sa_column_kwargs={"server_default": func.now()})
     updated_at: datetime = Field(
         sa_column_kwargs={"server_default": func.now(), "onupdate": func.now()}

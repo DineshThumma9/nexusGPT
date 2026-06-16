@@ -339,3 +339,23 @@ async def get_mcp_tools_count(user: User = Depends(get_current_user)):
     mcp_service = MCPService(user.userid)
     count_data = await mcp_service.get_tools_count()
     return count_data
+
+
+@router.get("/model-context-limit")
+async def get_model_context_limit(model: str):
+    try:
+        from litellm import model_cost
+
+        cost = model_cost.get(model, {})
+        max_tokens = cost.get("max_input_tokens") or cost.get("max_tokens")
+        if max_tokens:
+            return {"model": model, "context_limit": max_tokens}
+    except ImportError:
+        logger.warning(
+            "litellm is not installed, cannot fetch dynamic model context limits."
+        )
+    except Exception as e:
+        logger.warning(f"Failed to fetch context limit for {model}: {e}")
+
+    # Fallback default if not found
+    return {"model": model, "context_limit": 128000}

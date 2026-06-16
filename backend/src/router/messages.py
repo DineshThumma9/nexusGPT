@@ -26,8 +26,11 @@ async def message_stream(
     db=Depends(get_db),
     user=Depends(get_current_user),
 ):
+
     agent_object = AgentService(db=db, user=user, session_id=body.session_id)
-    agent = await agent_object.build(msg=body.msg, mcp_enabled=body.mcp_enabled)
+    agent = await agent_object.build(
+        msg=body.msg, mcp_enabled=body.mcp_enabled, thinking_level=body.thinking_level
+    )
 
     config = defaultdict(dict)
     config["configurable"]["thread_id"] = str(body.session_id)
@@ -49,6 +52,7 @@ async def _stream(
     await chat_obj.add_message(session_id, SenderRole.USER, message)
     yield f"data: {json.dumps({'type': 'start', 'content': ''})}\n\n"
     full = ""
+    usage_data = None
     try:
         async for chunk in agent.astream(
             {"messages": [HumanMessage(content=message)]},
@@ -59,6 +63,31 @@ async def _stream(
                 break
 
             msg_chunk, _meta = chunk
+
+            if hasattr(msg_chunk, "usage_metadata") and msg_chunk.usage_metadata:
+                new_usage = msg_chunk.usage_metadata
+                if usage_data is None:
+                    usage_data = dict(new_usage)
+                else:
+                    usage_data["input_tokens"] = usage_data.get(
+                        "input_tokens", 0
+                    ) + new_usage.get("input_tokens", 0)
+                    usage_data["output_tokens"] = usage_data.get(
+                        "output_tokens", 0
+                    ) + new_usage.get("output_tokens", 0)
+                    usage_data["total_tokens"] = usage_data.get(
+                        "total_tokens", 0
+                    ) + new_usage.get("total_tokens", 0)
+
+                    for detail_key in ["input_token_details", "output_token_details"]:
+                        if new_usage.get(detail_key):
+                            if not usage_data.get(detail_key):
+                                usage_data[detail_key] = dict(new_usage[detail_key])
+                            else:
+                                for k, v in new_usage[detail_key].items():
+                                    usage_data[detail_key][k] = (
+                                        usage_data[detail_key].get(k, 0) + v
+                                    )
 
             if hasattr(msg_chunk, "tool_call_chunks") and msg_chunk.tool_call_chunks:
                 continue
@@ -89,5 +118,41 @@ async def _stream(
         return
 
     await chat_obj.add_message(session_id, SenderRole.ASSISTANT, full)
+
+    if usage_data:
+        try:
+            from sqlalchemy import update
+
+            from ..db.redisdb import aredis as redis
+            from ..models.models import Session as SessionModel
+
+            stmt = (
+                update(SessionModel)
+                .where(SessionModel.session_id == session_id)
+                .values(
+                    input_tokens=SessionModel.input_tokens
+                    + usage_data.get("input_tokens", 0),
+                    output_tokens=SessionModel.output_tokens
+                    + usage_data.get("output_tokens", 0),
+                    total_tokens=SessionModel.total_tokens
+                    + usage_data.get("total_tokens", 0),
+                    cached_input_tokens=SessionModel.cached_input_tokens
+                    + usage_data.get("input_token_details", {}).get("cache_read", 0),
+                    reasoning_tokens=SessionModel.reasoning_tokens
+                    + usage_data.get("output_token_details", {}).get("reasoning", 0),
+                )
+            )
+            await db.execute(stmt)
+            await db.commit()
+
+            user_id = config.get("metadata", {}).get("user_id")
+            if user_id:
+                keys_pattern = f"sessions_all:{user_id}:*"
+                async for key in redis.scan_iter(keys_pattern):
+                    await redis.delete(key)
+        except Exception as e:
+            logger.error(f"Error updating session tokens: {e}")
+
+        yield f"data: {json.dumps({'type': 'usage', 'content': usage_data})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done', 'content': full})}\n\n"

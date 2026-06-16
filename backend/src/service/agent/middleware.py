@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, RemoveMessage, ToolMessage
 from langchain_groq import ChatGroq
 
 from src.config.settings import settings
+from src.models.enums import ThinkingLevel
 from src.service.agent.prompts import summarization_prompt
 
 
@@ -92,26 +93,33 @@ class SanitizeMessagesMiddleware(AgentMiddleware):
         return None
 
 
-def middleware_setup():
+def middleware_setup(thinking_level: ThinkingLevel = ThinkingLevel.MEDIUM):
+    if not isinstance(thinking_level, ThinkingLevel):
+        try:
+            thinking_level = ThinkingLevel[thinking_level.upper()]
+        except (KeyError, AttributeError):
+            thinking_level = ThinkingLevel.MEDIUM
+
+    thinking_config = thinking_level.value
     summarization = SummarizationMiddleware(
         model=ChatGroq(model=settings.summarization_llm),
         trigger=[
-            ("messages", settings.message_limit),
-            ("tokens", settings.token_limit),
+            ("messages", thinking_config.message_limit),
+            ("tokens", thinking_config.token_limit),
         ],
-        keep=("messages", settings.keep_message_limit),
+        keep=("messages", thinking_config.keep_message_limit),
         summarization_prompt=summarization_prompt,
     )
 
     call_tracker = ModelCallLimitMiddleware(
-        thread_limit=settings.model_thread_limit,
-        run_limit=settings.model_run_limit,
+        thread_limit=thinking_config.model_thread_limit,
+        run_limit=thinking_config.model_run_limit,
         exit_behavior=settings.model_exit_behavior,
     )
 
     tool_tracker = ToolCallLimitMiddleware(
-        thread_limit=settings.tool_thread_limit,
-        run_limit=settings.tool_run_limit,
+        thread_limit=thinking_config.tool_thread_limit,
+        run_limit=thinking_config.tool_run_limit,
         exit_behavior=settings.tool_exit_behaviour,
     )
 

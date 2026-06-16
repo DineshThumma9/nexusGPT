@@ -1,17 +1,18 @@
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field
 
-from src.models.enums import SenderRole
+if TYPE_CHECKING:
+    from src.models.enums import SenderRole
 
 
 # --- API (Pydantic) ---
 class ChatMessage(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID = Field(validation_alias=AliasChoices("id", "message_id"))
-    sender: SenderRole
+    sender: "SenderRole"
     content: str
     timestamp: Optional[datetime] = None
 
@@ -22,6 +23,7 @@ class MessageRequest(BaseModel):
     msg: str
     files: Optional[List[str]] = None
     mcp_enabled: bool = True
+    thinking_level: Optional[str] = None
 
 
 class QdrantClient(BaseModel):
@@ -72,6 +74,11 @@ class SessionResponse(BaseModel):
     title: str = Field(default="New Chat")
     kb_id: UUID | None = None
     source_type: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cached_input_tokens: int = 0
+    reasoning_tokens: int = 0
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -126,3 +133,20 @@ class PaginatedMessageResponse(BaseModel):
     messages: List[ChatMessage]
     has_more: bool
     next_cursor: Optional[str] = None
+
+
+class ThinkingConfig(BaseModel):
+    tool_run_limit: int
+    tool_thread_limit: int
+    model_thread_limit: int
+    model_run_limit: int
+    token_limit: int
+    keep_message_limit: int
+    message_limit: int
+
+    # model_run_limit: int = 15
+    # model_thread_limit: int = 50
+    # model_exit_behavior: str = "end"
+    # tool_run_limit: int = 15
+    # tool_thread_limit: int = 50
+    # tool_exit_behaviour: str = "continue"

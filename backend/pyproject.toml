@@ -69,6 +69,7 @@ dependencies = [
     "locust>=2.44.1",
     "protobuf<=3.20.3",
     "mcp-server-qdrant>=0.8.0",
+    "litellm>=1.89.1",
 ]
 
 [dependency-groups]

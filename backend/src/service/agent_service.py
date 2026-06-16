@@ -94,7 +94,11 @@ class AgentService:
 
         return session, kb, source_type, ns
 
-    async def build(self, msg: str, mcp_enabled: bool = True):
+    from src.models.enums import ThinkingLevel
+
+    async def build(
+        self, msg: str, mcp_enabled: bool = True, thinking_level: ThinkingLevel = None
+    ):
 
         session, kb, source_type, ns = await self.get_session_kb_context()
 
@@ -135,5 +139,5 @@ class AgentService:
             tools=tools,
             checkpointer=get_checkpointer(),
             system_prompt=agent_prompt,
-            middleware=middleware_setup(),
+            middleware=middleware_setup(thinking_level=thinking_level),
         )

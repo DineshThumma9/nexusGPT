@@ -397,10 +397,25 @@ const Response = () => {
                     from={isUser ? "user" : "assistant"}
                     key={msg.message_id || idx}
                   >
-                    <MessageContent>
+                    <MessageContent
+                      className={isUser ? "relative group/bubble" : ""}
+                    >
                       {isUser ? (
-                        <div className="whitespace-pre-wrap break-words">
-                          {msg.content}
+                        <div className="flex flex-col gap-2">
+                          <div className="whitespace-pre-wrap break-words">
+                            {msg.content}
+                          </div>
+                          <div className="absolute -bottom-3 -left-8 opacity-0 group-hover/bubble:opacity-100 transition-opacity">
+                            <Action
+                              onClick={() =>
+                                navigator.clipboard.writeText(msg.content)
+                              }
+                              tooltip="Copy to clipboard"
+                              className="size-7 bg-background shadow-sm border"
+                            >
+                              <CopyIcon className="size-3 text-muted-foreground" />
+                            </Action>
+                          </div>
                         </div>
                       ) : (
                         <>

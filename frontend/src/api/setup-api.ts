@@ -43,3 +43,13 @@ export const getMcpToolCount = async (): Promise<{
   const response = await setupAPI.get("/mcp-tools/count");
   return response.data;
 };
+
+export const getModelContextLimit = async (model: string): Promise<number> => {
+  try {
+    const response = await setupAPI.get(`/model-context-limit?model=${model}`);
+    return response.data.context_limit;
+  } catch (error) {
+    console.error("Failed to fetch model context limit:", error);
+    return 128000; // Default fallback
+  }
+};

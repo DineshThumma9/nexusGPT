@@ -74,7 +74,10 @@ const useMessage = () => {
     mcpEnabled,
   } = store;
 
-  async function streamMessage(userMsg: string): Promise<void> {
+  async function streamMessage(
+    userMsg: string,
+    thinkingLevel?: string,
+  ): Promise<void> {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort(); // cancel any previous stream
     }
@@ -130,6 +133,9 @@ const useMessage = () => {
           isFirst: isFirst,
           files: displayCurrentFiles,
           mcp_enabled: mcpEnabled,
+          thinking_level: thinkingLevel
+            ? thinkingLevel.toUpperCase()
+            : undefined,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -261,6 +267,21 @@ const useMessage = () => {
                     });
                     break;
 
+                  case "usage":
+                    if (data.content) {
+                      const usageData = data.content;
+                      useSessionStore.getState().setTokenUsage({
+                        inputTokens: usageData.input_tokens || 0,
+                        outputTokens: usageData.output_tokens || 0,
+                        totalTokens: usageData.total_tokens || 0,
+                        cachedInputTokens:
+                          usageData.input_token_details?.cached || 0,
+                        reasoningTokens:
+                          usageData.output_token_details?.reasoning || 0,
+                      });
+                    }
+                    break;
+
                   case "title": {
                     setTitle(data.content);
                     await changeTitle(current_session || v4(), data.content);
@@ -366,7 +387,7 @@ const useMessage = () => {
     } catch (err) {
       console.error("StreamMessage error:", err);
       let content = "[Error streaming response]";
-      if (err == "AbortError") {
+      if (err instanceof Error && err.name === "AbortError") {
         content = "[Interuptted Streaming]";
       }
       updateMessage(assistantMsgId, {

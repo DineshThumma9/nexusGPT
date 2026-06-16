@@ -12,9 +12,78 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./ui/collapsible";
+import { Badge } from "./ui/badge";
 
 interface ChatAreaProps {
   onOpenSidebar?: () => void;
+}
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
+
+export function TokenUsageBadge() {
+  const sessions = sessionStore((state) => state.sessions);
+  const currentSessionId = sessionStore((state) => state.current_session);
+
+  // Find the active session object
+  const activeSession = sessions.find((s) => s.session_id === currentSessionId);
+
+  // Default to 0 if starting a brand new un-saved session
+  const tokens = activeSession?.total_tokens || 0;
+
+  if (tokens === 0) return null;
+
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={200}>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="secondary"
+            className="text-xs ml-2 bg-secondary/80 text-secondary-foreground hover:bg-secondary border-none font-medium cursor-default"
+          >
+            {tokens.toLocaleString()} Tokens
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          className="flex flex-col gap-1 text-xs bg-white"
+        >
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground black">Input:</span>
+            <span className="font-medium">
+              {activeSession?.input_tokens?.toLocaleString() || 0}
+            </span>
+          </div>
+          {activeSession?.cached_input_tokens ? (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground pl-2">↳ Cached:</span>
+              <span className="font-medium text-blue-400">
+                {activeSession.cached_input_tokens.toLocaleString()}
+              </span>
+            </div>
+          ) : null}
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Output:</span>
+            <span className="font-medium">
+              {activeSession?.output_tokens?.toLocaleString() || 0}
+            </span>
+          </div>
+          {activeSession?.reasoning_tokens ? (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground pl-2">↳ Reasoning:</span>
+              <span className="font-medium text-green-400">
+                {activeSession.reasoning_tokens.toLocaleString()}
+              </span>
+            </div>
+          ) : null}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 const ChatArea = ({ onOpenSidebar }: ChatAreaProps) => {
@@ -60,8 +129,9 @@ const ChatArea = ({ onOpenSidebar }: ChatAreaProps) => {
           </Collapsible>
 
           {/* Model chooser — desktop only */}
-          <div className="hidden md:block min-w-0">
+          <div className="hidden md:flex min-w-0 items-center gap-2">
             <LLMModelChooser />
+            <TokenUsageBadge />
           </div>
         </div>
 
@@ -74,8 +144,9 @@ const ChatArea = ({ onOpenSidebar }: ChatAreaProps) => {
           className="absolute z-40"
           style={{ top: "50px", left: "8px", right: "8px" }}
         >
-          <div className="bg-background p-2 rounded-xl border border-border shadow-md">
+          <div className="bg-background p-2 rounded-xl border border-border shadow-md flex flex-col gap-2">
             <LLMModelChooser />
+            <TokenUsageBadge />
           </div>
         </CollapsibleContent>
       </Collapsible>

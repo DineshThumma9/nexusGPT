@@ -859,7 +859,11 @@ export const PromptInputTextarea = ({
         return;
       }
 
-      form?.requestSubmit();
+      if (submitButton) {
+        submitButton.click();
+      } else {
+        form?.requestSubmit();
+      }
     }
 
     // Remove last attachment when Backspace is pressed and textarea is empty

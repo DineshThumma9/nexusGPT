@@ -19,12 +19,21 @@ export type SessionState = {
   shouldStream: boolean;
   context: "code" | "notes" | "vanilla";
   kb_id: string | null;
+  // Token tracking state
+  tokenUsage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    cachedInputTokens: number;
+    reasoningTokens: number;
+  };
   // Pagination state
   sessionNextCursor: string | null;
   sessionHasMore: boolean;
   isFetchingMore: boolean;
   mcpEnabled: boolean;
 
+  setTokenUsage: (usage: Partial<SessionState["tokenUsage"]>) => void;
   setCurrentSessionId: (session: string | null) => void;
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
@@ -86,19 +95,73 @@ const useSessionStore = create<SessionState>()(
       pendingMessage: null,
       context: "vanilla",
       kb_id: null,
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cachedInputTokens: 0,
+        reasoningTokens: 0,
+      },
       sessionNextCursor: null,
       sessionHasMore: true,
       isFetchingMore: false,
       mcpEnabled: true,
 
+      setTokenUsage: (usage) =>
+        set((state) => {
+          const newTokenUsage = { ...state.tokenUsage, ...usage };
+
+          let updatedSessions = state.sessions;
+          if (state.current_session) {
+            updatedSessions = state.sessions.map((s) =>
+              s.session_id === state.current_session
+                ? {
+                    ...s,
+                    input_tokens: newTokenUsage.inputTokens,
+                    output_tokens: newTokenUsage.outputTokens,
+                    total_tokens: newTokenUsage.totalTokens,
+                    cached_input_tokens: newTokenUsage.cachedInputTokens,
+                    reasoning_tokens: newTokenUsage.reasoningTokens,
+                  }
+                : s,
+            );
+          }
+
+          return {
+            tokenUsage: newTokenUsage,
+            sessions: updatedSessions,
+          };
+        }),
+
       setCurrentSessionId: (session) =>
-        set({
-          current_session: session,
-          isWaitingForIndexing: false,
-          indexingStatus: "",
-          indexingDetail: "",
-          pendingMessage: null,
-          kb_id: null,
+        set((state) => {
+          const selectedSession = state.sessions.find(
+            (s) => s.session_id === session,
+          );
+
+          return {
+            current_session: session,
+            isWaitingForIndexing: false,
+            indexingStatus: "",
+            indexingDetail: "",
+            pendingMessage: null,
+            kb_id: null,
+            tokenUsage: selectedSession
+              ? {
+                  inputTokens: selectedSession.input_tokens || 0,
+                  outputTokens: selectedSession.output_tokens || 0,
+                  totalTokens: selectedSession.total_tokens || 0,
+                  cachedInputTokens: selectedSession.cached_input_tokens || 0,
+                  reasoningTokens: selectedSession.reasoning_tokens || 0,
+                }
+              : {
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  totalTokens: 0,
+                  cachedInputTokens: 0,
+                  reasoningTokens: 0,
+                },
+          };
         }),
       setMessages: (messages) => set({ messages }),
       addMessage: (message) =>
