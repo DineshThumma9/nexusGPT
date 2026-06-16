@@ -218,7 +218,7 @@ async def get_status(
                 # Redis key is gone but Postgres says INDEXING → worker died.
                 # Return 'stale' so the frontend can surface a retry option.
 
-                if redis_client.get(kb_key) is None:
+                if await redis_client.get(kb_key) is None:
                     # Set it to stale in db
                     kb.status = KBStatus.STALE
                     db.add(kb)
@@ -259,6 +259,3 @@ async def get_status(
     except Exception as e:
         logger.error(f"Error getting status for KB {kb_id}: {e}")
         return {"status": "error", "detail": str(e), "kb_id": kb_id}
-
-
-mock_status_counters = {}

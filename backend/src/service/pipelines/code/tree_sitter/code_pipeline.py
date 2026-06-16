@@ -1,4 +1,3 @@
-import asyncio
 import concurrent
 import concurrent.futures
 import os
@@ -16,7 +15,7 @@ from tree_sitter import Parser, Query, QueryCursor
 from tree_sitter_language_pack import ProcessConfig, detect_language_from_path, process
 
 from src.db.graphdb import get_async_graph, get_graph
-from src.db.vectordb import _client, vector_db
+from src.db.vectordb import vector_db
 from src.models.code_schema import (
     FileParseResult,
     GraphEntity,
@@ -26,8 +25,12 @@ from src.models.code_schema import (
 )
 from src.models.schema import GitRequest, ProjectNode
 from src.service.constants import (
+    _CALL_NODE_TYPES,
     _CLASS_DEF_TYPES,
+    _FUNCTION_DEF_TYPES,
     _IGNORED_CALLS_BY_LANG,
+    _INTERMEDIATE_TYPES,
+    _NAME_CAPTURES,
     _UNIVERSAL_IGNORED,
     ALWAYS_SKIP,
     CHUNK_SIZE_BY_LANGUAGE,
@@ -38,34 +41,6 @@ from src.service.constants import (
 
 from ..languages.grammer import LANUGUAGE_GRAMMERS
 from .complied_object import CompiledObjectProcessor
-
-# Capture names that identify the *called function name* node (an identifier).
-# Whole-node captures like @call_node / @args are excluded.
-_NAME_CAPTURES = {"name", "function_name", "method_name", "scoped_name"}
-
-# Call-site node types across all supported tree-sitter grammars.
-_CALL_NODE_TYPES = {
-    "call",  # Python, Ruby
-    "call_expression",  # JS/TS, Go, C, C++, Rust
-    "method_invocation",  # Java, C#, Kotlin
-    "object_creation_expression",  # Java
-    "new_expression",  # JS/TS
-    "invocation_expression",  # C#
-    "macro_invocation",  # Rust
-}
-
-# Function/method definition node types used to find the enclosing caller.
-_FUNCTION_DEF_TYPES = {
-    "function_definition",  # Python, C, C++
-    "function_declaration",  # JS/TS, Go, Rust
-    "method_definition",  # JS/TS
-    "method_declaration",  # Java, C#, Kotlin
-    "method",  # Ruby
-    "constructor_declaration",  # Java, C#
-    "arrow_function",  # JS/TS
-    "function_item",  # Rust
-    "func_literal",  # Go
-}
 
 
 class CodePipeline:
@@ -285,16 +260,6 @@ class CodePipeline:
         else:
             captures = sorted(raw, key=lambda x: x[0].start_byte)
 
-        _INTERMEDIATE_TYPES = {
-            "attribute",
-            "member_expression",
-            "selector_expression",
-            "field_expression",
-            "field_access",
-            "scoped_identifier",
-            "qualified_identifier",
-        }
-
         # Dynamically fetch the ignore list for this specific language, merging it with universal garbage
         ignored_calls = (
             _IGNORED_CALLS_BY_LANG.get(lang_name, set()) | _UNIVERSAL_IGNORED
@@ -457,16 +422,18 @@ class CodePipeline:
             session.run(
                 "CREATE INDEX node_ns_index IF NOT EXISTS FOR (n:CodeNode) ON (n.ns)"
             )
+            session.run(
+                "CREATE INDEX node_id_ns_index IF NOT EXISTS FOR (n:CodeNode) ON (n.id, n.ns)"
+            )
 
             with session.begin_transaction() as tx:
                 tx.run(
                     """
                         UNWIND $batch as entity
-                        MERGE (n:CodeNode {id:entity.node_id})
+                        MERGE (n:CodeNode {id:entity.node_id, ns:$ns})
                         ON CREATE SET
                          n.name = entity.name,
-                         n.kind = entity.kind,
-                         n.ns = $ns
+                         n.kind = entity.kind
                     """,
                     batch=all_entites,
                     ns=self.kb_id,
@@ -518,17 +485,13 @@ class CodePipeline:
             vectordb_task = executor.submit(self.build_vectordb)
             graphdb_task = executor.submit(self.build_graph)
 
-            done, _ = concurrent.futures.wait(
-                [vectordb_task, graphdb_task],
-                return_when=concurrent.futures.FIRST_EXCEPTION,
-            )
+            concurrent.futures.wait([vectordb_task, graphdb_task])
 
-            for future in done:
-                try:
-                    future.result()
-                except Exception as e:
-                    logger.error(f"[build_kb] Critical error in parallel write: {e}")
-                    raise e
+            for task in [vectordb_task, graphdb_task]:
+                if task.exception():
+                    exc = task.exception()
+                    logger.error(f"[build_kb] Critical error in parallel write: {exc}")
+                    raise exc
 
         logger.info(
             f"[build_kb] vectordb + graph parallel write: {time.time() - t:.2f}s"

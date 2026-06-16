@@ -1,12 +1,10 @@
 import json
 from datetime import datetime
 
-import loguru as logger
 from cryptography.fernet import Fernet
+from loguru import logger
 
 from src.config.settings import settings
-
-fernet = Fernet(settings.fernet_key)
 
 
 class CyrptoService:

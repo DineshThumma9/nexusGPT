@@ -1,3 +1,5 @@
+import threading
+
 from redis import Redis
 from redis.asyncio import Redis as AsyncRedis
 
@@ -5,6 +7,7 @@ from src.config.settings import settings
 
 _sredis, _aredis = None, None
 _redis_init_attempted = False
+_redis_lock = threading.Lock()
 
 
 class RedisProxy:
@@ -15,14 +18,17 @@ class RedisProxy:
         global _sredis, _aredis, _redis_init_attempted
         target = _aredis if self.is_async else _sredis
         if target is None:
-            if not _redis_init_attempted:
-                _redis_init_attempted = True
-                init_redis()
+            with _redis_lock:
                 target = _aredis if self.is_async else _sredis
-            else:
-                raise RuntimeError(
-                    "Redis initialization failed previously or is unavailable"
-                )
+                if target is None:
+                    if not _redis_init_attempted:
+                        _redis_init_attempted = True
+                        init_redis()
+                        target = _aredis if self.is_async else _sredis
+                    else:
+                        raise RuntimeError(
+                            "Redis initialization failed previously or is unavailable"
+                        )
 
         return getattr(target, name)
 

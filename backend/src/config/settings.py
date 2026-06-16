@@ -58,10 +58,6 @@ class Settings(BaseSettings):
     message_limit: int = 12
     token_limit: int = 8000
     keep_message_limit: int = 10
-
-    # Supabase uses PgBouncer in transaction mode (port 6543) which multiplexes
-    # client connections server-side. Keep SQLAlchemy's pool small — the pooler
-    # does the heavy lifting. Large SQLAlchemy pools just add lock contention.
     db_pool_size: int = 10  # Connections to keep in pool
     db_max_overflow: int = 5  # Extra connections when pool exhausted
     db_pool_timeout: int = 10  # Wait max 10s for available connection

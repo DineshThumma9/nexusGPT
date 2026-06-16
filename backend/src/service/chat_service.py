@@ -29,7 +29,7 @@ class ChatService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def add_message(self, session_id: str, sender: str, content: str) -> None:
+    async def add_message(self, session_id: str, sender: str, content: str) -> Message:
         try:
             session_uuid = UUID(session_id)
             message = Message(session_id=session_uuid, sender=sender, content=content)
@@ -49,6 +49,7 @@ class ChatService:
         except Exception as e:
             logger.error(f"Failed to save message: {e}")
             await self.db.rollback()
+            raise
 
     async def ensure_kb(
         self,

@@ -102,6 +102,11 @@ async def logout(
         refresh_payload = jwt.decode(
             refresh, settings.secret_key, algorithms=[settings.algorithm]
         )
+        refresh_sub = refresh_payload.get("sub")
+        if refresh_sub != current_user.email:
+            raise HTTPException(
+                status_code=401, detail="Refresh token subject mismatch"
+            )
         refresh_jti = refresh_payload.get("jti")
         await aredis.delete(f"whitelist:{current_user.email}:{refresh_jti}")
 

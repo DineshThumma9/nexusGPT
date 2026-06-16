@@ -83,8 +83,14 @@ class AgentService:
             if kb:
                 kb_status = kb.status.value
                 if kb_status.lower() != "ready":
-                    raise HTTPException(status_code=400, detail="KB is processed")
+                    msg = f"KB {kb.kb_id} is not ready (current status: {kb_status}). "
+                    if kb_status.lower() in ["failed", "stale"]:
+                        msg += "Please re-submit the repository."
+                    else:
+                        msg += "Please wait for ingestion to complete."
+                    raise HTTPException(status_code=400, detail=msg)
                 ns = str(session.kb_id)
+                source_type = kb.source_type.value if kb.source_type else None
 
         return session, kb, source_type, ns
 

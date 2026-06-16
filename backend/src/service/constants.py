@@ -120,16 +120,6 @@ PARSE_AS_TEXT = {
 }
 
 
-links = {
-    "mistralai": "https://api.mistral.ai/v1/models",
-    "openai": "https://api.openai.com/v1/models",
-    "groq": "https://api.groq.com/openai/v1/models",
-    "openrouter": "https://openrouter.ai/api/v1/models",
-    "anthropic": "https://api.anthropic.com/v1/models",
-    "huggingface": "https://router.huggingface.co/v1/models",
-}
-
-
 _VALIDATION_URLS: dict[str, str] = {
     "groq": "https://api.groq.com/openai/v1/models",
     "openai": "https://api.openai.com/v1/models",
@@ -334,6 +324,17 @@ _IGNORED_CALLS = {
 }
 
 
+_INTERMEDIATE_TYPES = {
+    "attribute",
+    "member_expression",
+    "selector_expression",
+    "field_expression",
+    "field_access",
+    "scoped_identifier",
+    "qualified_identifier",
+}
+
+
 # Maps file extension → (language name, scip CLI binary name, install hint, docker image)
 EXTENSION_TO_SCIP = {
     ".py": (
@@ -484,4 +485,33 @@ EXTENSION_TO_SCIP = {
         "go install github.com/sourcegraph/scip-ctags/cmd/scip-ctags@latest",
         "sourcegraph/scip-ctags",
     ),
+}
+
+
+# Capture names that identify the *called function name* node (an identifier).
+# Whole-node captures like @call_node / @args are excluded.
+_NAME_CAPTURES = {"name", "function_name", "method_name", "scoped_name"}
+
+# Call-site node types across all supported tree-sitter grammars.
+_CALL_NODE_TYPES = {
+    "call",  # Python, Ruby
+    "call_expression",  # JS/TS, Go, C, C++, Rust
+    "method_invocation",  # Java, C#, Kotlin
+    "object_creation_expression",  # Java
+    "new_expression",  # JS/TS
+    "invocation_expression",  # C#
+    "macro_invocation",  # Rust
+}
+
+# Function/method definition node types used to find the enclosing caller.
+_FUNCTION_DEF_TYPES = {
+    "function_definition",  # Python, C, C++
+    "function_declaration",  # JS/TS, Go, Rust
+    "method_definition",  # JS/TS
+    "method_declaration",  # Java, C#, Kotlin
+    "method",  # Ruby
+    "constructor_declaration",  # Java, C#
+    "arrow_function",  # JS/TS
+    "function_item",  # Rust
+    "func_literal",  # Go
 }

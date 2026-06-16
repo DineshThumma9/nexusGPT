@@ -1,15 +1,14 @@
+import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import Session as DBSession
 from sqlmodel import select
 
 from src.db.redisdb import aredis as redis
@@ -41,7 +40,6 @@ logger.add("logs/api.log", rotation="1 MB", retention="10 days", level="INFO")
 logger.info("Server started")
 
 router = APIRouter()
-load_dotenv()
 
 # -------------------------------------------------------------------------
 # ROUTES
@@ -54,7 +52,7 @@ async def create_new_session(
     request: Request,
     body: CreateSessionRequest | None = None,
     user: User = Depends(get_current_user),
-    db: DBSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     session_id = body.session_id if body and body.session_id else str(uuid.uuid4())
     try:
@@ -79,7 +77,7 @@ async def create_new_session(
 async def get_chat_history(
     request: Request,
     session_id: str,
-    db: DBSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     cursor: Optional[str] = None,
     limit: int = Query(20, ge=1, le=100),
     response_format=PaginatedMessageResponse,
@@ -151,7 +149,7 @@ async def update_session_title(
 
         if session:
             session.title = body.title
-            session.updated_at = datetime.utcnow()
+            session.updated_at = datetime.now(timezone.utc)
             db.add(session)  # add() is always sync on AsyncSession
             await db.commit()
 
@@ -171,7 +169,7 @@ async def update_session_title(
 async def delete_session(
     request: Request,
     session_id: str,
-    db: DBSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
     try:
@@ -220,7 +218,7 @@ async def delete_session(
                         await db.delete(kb)
                         # Only wipe vector/graph data if the KB is actually orphaned and deleted
                         try:
-                            await wipe_kb_data(kb_id=kb_id_to_check)
+                            await asyncio.to_thread(wipe_kb_data, kb_id_to_check)
                             logger.info(
                                 f"Wiped graph and vector data for orphaned KB: {kb_id_to_check}"
                             )
@@ -239,16 +237,11 @@ async def delete_session(
     return {"status": "success"}
 
 
-# -------------------------------------------------------------------------
-# CURSOR HELPERS
-# -------------------------------------------------------------------------
-
-
 @router.get("/getAll")
 @limiter.limit("30/minute")
 async def get_all_sessions(
     request: Request,
-    db: DBSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
     cursor: Optional[str] = Query(
         None, description="Opaque pagination cursor from previous response"

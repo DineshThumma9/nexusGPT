@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
 
@@ -74,7 +74,7 @@ def ingest_git_repo_task(
         _set_status(kb_id, "processing", "Processing repository...")
         service.build_kb()
     except Exception as e:
-        raise ValueError(f"Failed to process repository: {e}")
+        raise ValueError(f"Failed to process repository: {e}") from e
 
     _set_status(kb_id, "ready", "Ingestion complete")
     update_kb(kb_id=kb_id, status=KBStatus.READY)
@@ -118,7 +118,7 @@ def update_session(session_id: str, title: str, user_id: str):
 
             if session and session.title == "New Chat":
                 session.title = title
-                session.updated_at = datetime.utcnow()
+                session.updated_at = datetime.now(timezone.utc)
                 db.add(session)
                 db.commit()
                 logger.info(f"Updated title for session {session.session_id}: {title}")
