@@ -30,6 +30,9 @@ services:
     depends_on:
       - redis
       - qdrantdb
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp:/tmp
     command: celery -A src.service.background.worker.queue worker --loglevel=info --concurrency=2
 
   qdrantdb:

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libc6-dev \
     libpq-dev \
+    docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 # Force Linux to prefer IPv4 over IPv6 in DNS resolution to prevent Neon DB connection issues
