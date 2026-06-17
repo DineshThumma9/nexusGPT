@@ -249,13 +249,29 @@ class ScipIndexer:
                                 s.replace(proj_h, "/src").replace(out_h, "/out")
                             )
                     internal_cmd = mapped
-                elif lang == "csharp":
+                else:
                     proj_h = str(project_path.resolve())
                     out_h = str(output_dir.resolve())
-                    internal_cmd = [
-                        str(a).replace(proj_h, "/src").replace(out_h, "/out")
-                        for a in internal_cmd
-                    ]
+                    proj_h_un = str(project_path)
+                    out_h_un = str(output_dir)
+                    out_f = str(output_file)
+                    out_f_res = str(output_file.resolve())
+                    logger.info(
+                        f"MAPPING ARGS! proj_h={proj_h}, out_h={out_h}, internal_cmd={internal_cmd}"
+                    )
+                    new_internal = []
+                    for a in internal_cmd:
+                        s = str(a)
+                        if s == out_f or s == out_f_res:
+                            new_internal.append("/out/index.scip")
+                            continue
+                        s = s.replace(proj_h, "/src")
+                        s = s.replace(proj_h_un, "/src")
+                        s = s.replace(out_h, "/out")
+                        s = s.replace(out_h_un, "/out")
+                        new_internal.append(s)
+                    internal_cmd = new_internal
+                    logger.info(f"MAPPED ARGS: {internal_cmd}")
 
                 docker_cmd.extend(internal_cmd)
 
