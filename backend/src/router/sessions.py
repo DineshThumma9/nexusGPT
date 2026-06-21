@@ -26,10 +26,10 @@ from ..models.schema import (
 )
 from ..router.limiter import limiter
 from ..service.auth_service import get_current_user
-from ..service.crypto import CyrptoService
+from ..service.crypto import CryptoService
 from ..service.pipelines.code.tree_sitter.cleanup import wipe_kb_data
 
-crypto = CyrptoService()
+crypto = CryptoService()
 
 
 class CreateSessionRequest(BaseModel):

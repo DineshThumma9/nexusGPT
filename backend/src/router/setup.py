@@ -16,11 +16,11 @@ from ..models.models import APIKEYS, User, UserLLMConfig, UserMCPConfig
 from ..models.schema import API_KEY_REQUEST, API_KEY_RESPONSE, MCPModel
 from ..service.auth_service import AuthService, get_current_user
 from ..service.constants import _VALIDATION_URLS, VALID_PROVIDERS
-from ..service.crypto import CyrptoService
+from ..service.crypto import CryptoService
 
 load_dotenv()
 router = APIRouter()
-crypto = CyrptoService()
+crypto = CryptoService()
 
 # Global httpx client with connection pooling
 _http_client: httpx.AsyncClient | None = None

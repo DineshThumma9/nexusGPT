@@ -15,6 +15,7 @@ from src.service.agent.prompts import system_prompt
 from src.service.agent.tools import Tools
 from src.service.auth_service import AuthService
 from src.service.background.tasks import session_title_gen
+from src.models.enums import ThinkingLevel
 
 
 class AgentService:
@@ -94,8 +95,6 @@ class AgentService:
 
         return session, kb, source_type, ns
 
-    from src.models.enums import ThinkingLevel
-
     async def build(
         self, msg: str, mcp_enabled: bool = True, thinking_level: ThinkingLevel = None
     ):
@@ -121,6 +120,7 @@ class AgentService:
             async_neo4j=get_async_graph(),
             llm=llm,
             mcp_enabled=mcp_enabled,
+            kb_type=source_type,
         )
         tools = tools_instance.tools
 

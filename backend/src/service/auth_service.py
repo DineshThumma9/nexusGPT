@@ -19,7 +19,7 @@ from src.db.dbs import get_db
 from src.db.redisdb import aredis
 from src.models.models import APIKEYS, User
 from src.service.constants import _VALIDATION_URLS
-from src.service.crypto import CyrptoService
+from src.service.crypto import CryptoService
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
@@ -32,7 +32,7 @@ class AuthService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.crypto = CyrptoService()
+        self.crypto = CryptoService()
 
     async def _get_user_by_email(self, email: str) -> User | None:
         cache_key = f"user:email:{email}"

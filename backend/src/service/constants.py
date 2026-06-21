@@ -1,5 +1,3 @@
-import os
-
 # Always skip — pure noise
 ALWAYS_SKIP = {
     "package-lock.json",
@@ -130,14 +128,6 @@ _VALIDATION_URLS: dict[str, str] = {
     "huggingface": "https://router.huggingface.co/v1/models",
 }
 
-
-api_keys = {
-    "mistralai": os.getenv("MISTRAL_API_KEY"),
-    "openai": os.getenv("OPENAI_API_KEY"),
-    "groq": os.getenv("GROQ_API_KEY"),
-    "openrouter": os.getenv("OPENROUTER_API_KEY"),
-    "huggingface": os.getenv("HF_TOKEN"),
-}
 
 VALID_PROVIDERS = list(_VALIDATION_URLS.keys())
 
@@ -301,26 +291,6 @@ _CLASS_DEF_TYPES = {
     "class",  # Ruby
     "struct_item",  # Rust
     "type_declaration",  # Go
-}
-
-# Add common built-ins or garbage names you want to keep out of your graph
-_IGNORED_CALLS = {
-    "dict",
-    "str",
-    "int",
-    "list",
-    "set",
-    "len",
-    "print",
-    "Exception",
-    "super",
-    "range",
-    "enumerate",
-    "zip",
-    "type",
-    "isinstance",
-    "getattr",
-    "setattr",
 }
 
 

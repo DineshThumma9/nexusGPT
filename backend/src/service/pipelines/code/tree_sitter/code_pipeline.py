@@ -407,6 +407,18 @@ class CodePipeline:
             all_entites.extend([e.model_dump() for e in code.entities])
             all_relations.extend([r.model_dump() for r in code.relations])
 
+        user_defined_functions = {e["name"] for e in all_entites if e["kind"] in ("Function", "Method", "Class")}
+        
+        filtered_relations = []
+        for r in all_relations:
+            if r["rel_type"] == "CALLS":
+                if r["target_id"] in user_defined_functions:
+                    filtered_relations.append(r)
+            else:
+                filtered_relations.append(r)
+        
+        all_relations = filtered_relations
+
         if not all_entites or not all_relations:
             logger.warning("[graph] No entities or relations to write — skipping Neo4j")
             return

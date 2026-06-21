@@ -19,6 +19,7 @@ from src.models.schema import GitRequest
 from src.service.agent.prompts import title_prompt
 from src.service.background.worker import queue
 from src.service.chat_service import update_kb
+from src.service.pipelines.code.tree_sitter.code_pipeline import CodePipeline
 from src.service.pipelines.code.scip.scip_pipeline import SCIPPipeline
 from src.service.pipelines.code.tree_sitter.cleanup import wipe_kb_data
 from src.service.pipelines.rag.documents import RAGPipeline
@@ -70,7 +71,7 @@ def ingest_git_repo_task(
     req = GitRequest(**req_dict)
 
     try:
-        service = SCIPPipeline(req=req, kb_id=kb_id, branch=req.branch, token=req.token)
+        service =  SCIPPipeline(req=req, kb_id=kb_id, branch=req.branch, token=req.token)
         _set_status(kb_id, "processing", "Processing repository...")
         service.build_kb()
     except Exception as e:

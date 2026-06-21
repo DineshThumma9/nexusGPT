@@ -7,7 +7,7 @@ from loguru import logger
 from src.config.settings import settings
 
 
-class CyrptoService:
+class CryptoService:
     def __init__(self):
         self.fernet = Fernet(settings.fernet_key)
 

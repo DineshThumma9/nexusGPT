@@ -11,7 +11,7 @@ from sqlalchemy import select
 from src.db.dbs import AsyncSessionLocal, _init_db
 from src.db.redisdb import aredis as redis_client
 from src.models.models import UserMCPConfig
-from src.service.crypto import CyrptoService
+from src.service.crypto import CryptoService
 
 
 class AsyncLRUCache:
@@ -57,7 +57,7 @@ class MCPService:
         self.user_id = user_id
         self.client: Optional[MultiServerMCPClient] = None
         self.client_config: Optional[Dict[str, Any]] = None
-        self.crypto = CyrptoService()
+        self.crypto = CryptoService()
 
     async def _initialize(self) -> None:
         """Fetch config from cache/DB and initialize MultiServerMCPClient."""

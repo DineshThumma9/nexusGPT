@@ -16,10 +16,7 @@ from ..router.auth import get_current_user
 from ..router.limiter import limiter
 from ..service.background.tasks import ingest_git_repo_task, ingest_pdf_task
 from ..service.chat_service import ChatService
-from ..service.pipelines.code.tree_sitter.code_utils import (
-    CodeUtils,
-    RepoTooLargeError,
-)
+from ..service.pipelines.code.tree_sitter.code_utils import CodeUtils, RepoTooLargeError
 from ..service.s3 import S3Service
 
 router = APIRouter()
